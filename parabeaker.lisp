@@ -30,16 +30,6 @@
              (format stream "Expected element ~S"
                      (slot-value condition 'name)))))
 
-(defun parse (parser stream)
-  "Run the given parser."
-  (let ((result (funcall parser stream)))
-    (etypecase result
-      (eof (error 'end-of-file :stream stream))
-      (expected (error 'expected-element
-                       :name (slot-value result 'name)
-                       :stream stream))
-      (result (just-value result)))))
-
 (defclass result ()
   ((position :initarg :position :reader result-position)))
 
@@ -47,7 +37,7 @@
   ((value :initarg :value :reader just-value)))
 
 (defclass expected (result)
-  ((name :initarg :name)))
+  ((name :initarg :name :reader expected-name)))
 
 (defclass eof (result) ())
 
@@ -79,6 +69,16 @@
 (defun eof (stream)
   (make-instance 'eof :position (file-position stream)))
 
+(defun parse (parser stream)
+  "Run the given parser."
+  (let ((result (funcall parser stream)))
+    (etypecase result
+      (eof (error 'end-of-file :stream stream))
+      (expected (error 'expected-element
+                       :name (expected-name result)
+                       :stream stream))
+      (result (just-value result)))))
+
 (defun flatmap-result (result function)
   (if (typep result 'just)
       (funcall function (just-value result))
@@ -88,6 +88,11 @@
   (if (typep result 'just)
       result
       (funcall function result)))
+
+(defun expectmap-result (result function)
+  (if (typep result 'expected)
+      (funcall function result)
+      result))
 
 
 
@@ -141,18 +146,38 @@
 (defun parser-any (&rest parsers)
   "Return a parser that attempts each parser while no input is consumed, until
    one parser succeeds."
-  (declare (ignore parsers))
-  (TODO))
+  (lambda (stream)
+    (loop
+      :with position := (file-position stream)
+      :for parser :in parsers
+      :for result := (funcall parser stream)
+      :when (typep result '(or just eof))
+        :return result
+      :collect (expected-name result) :into expecteds
+      :until (> (file-position stream) position)
+      :finally (return (expected expecteds stream)))))
 
-(defun parser-many (&rest parsers)
+(defun parser-many (parser)
   "Return a parser that keeps parsing the given parser until failure."
-  (declare (ignore parsers))
-  (TODO))
+  (lambda (stream)
+    (loop
+      :for position := (file-position stream)
+      :for result := (funcall parser stream)
+      :while (typep result 'just)
+      :collect (just-value result) :into values
+      :finally (return (if (and (typep result '(not just))
+                                (> (file-position stream) position))
+                           result
+                           (just values stream))))))
 
-(defun parser-many1 (&rest parsers)
+(defun parser-many1 (parser)
   "Return a parser that keeps parsing the given parser until failure, at least once."
-  (declare (ignore parsers))
-  (TODO))
+  (lambda (stream)
+    (flatmap-result (funcall (parser-many parser) stream)
+                    (lambda (results)
+                      (if results
+                          (just results stream)
+                          (expected parser stream))))))
 
 (defun parser-try (parser)
   (declare (ignore parser))
