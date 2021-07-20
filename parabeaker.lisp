@@ -20,43 +20,71 @@
 (defmacro TODO ()
   `(error "Not implemented"))
 
+(define-condition expected-element ()
+  ((name :initarg :name)
+   (stream :initarg :stream))
+  (:report (lambda (condition stream)
+             (format stream "Expected element ~S"
+                     (slot-value condition 'name)))))
+
 (defun parse (parser stream)
   "Run the given parser."
-  (declare (ignore parser stream))
-  (TODO))
+  (let ((result (funcall parser stream)))
+    (etypecase result
+      (eof (error 'end-of-file :stream stream))
+      (expected (error 'expected-element
+                       :name (slot-value result 'name)
+                       :stream stream))
+      (result (slot-value result 'value)))))
 
 (defclass result ()
-  ((value :initarg :value :reader result-value)
-   (position :initarg :position :reader result-position)))
+  ((position :initarg :position :reader result-position)))
 
-(defmethod print-object ((object result) stream)
+(defclass just (result)
+  ((value :initarg :value)))
+
+(defclass expected (result)
+  ((name :initarg :name)))
+
+(defclass eof (result) ())
+
+(defmethod print-object ((object just) stream)
   (print-unreadable-object (object stream :type t)
-    (format stream "~S POS=~D"
-            (result-value object)
-            (result-position object))))
+    (with-slots (value position) object
+      (format stream "~S POS=~D" value position))))
 
-(defclass just (result) ())
-(defclass expected (result) ())
+(defmethod print-object ((object expected) stream)
+  (print-unreadable-object (object stream :type t)
+    (with-slots (name position) object
+      (format stream "~S POS=~D" name position))))
+
+(defmethod print-object ((object eof) stream)
+  (print-unreadable-object (object stream :type t)
+    (with-slots (position) object
+      (format stream "POS=~D" position))))
 
 (defun just (value stream)
   (make-instance 'just
                  :value value
                  :position (file-position stream)))
 
-(defun expected (value stream)
+(defun expected (name stream)
   (make-instance 'expected
-                 :value value
+                 :name name
                  :position (file-position stream)))
 
-(defun flatmap-result (result function)
-  (etypecase result
-    (just (funcall function result))
-    (expected result)))
+(defun eof (stream)
+  (make-instance 'eof :position (file-position stream)))
 
-(defun expectmap-result (result function)
-  (etypecase result
-    (just result)
-    (expected (funcall result function))))
+(defun flatmap-result (result function)
+  (if (typep result 'just)
+      (funcall function result)
+      result))
+
+(defun errormap-result (result function)
+  (if (typep result 'just)
+      result
+      (funcall function result)))
 
 
 
@@ -65,30 +93,34 @@
   (lambda (stream)
     (let ((actual-string (make-string (length string))))
       ;; TODO deal with EOF here
-      (assert (= (length string)
-                 (read-sequence actual-string stream)))
-      (if (string= string actual-string)
-          (just actual-string stream)
-          (expected string stream)))))
+      (cond
+        ((< (read-sequence actual-string stream)
+            (length string))
+         (eof stream))
+        ((string= actual-string string)
+         (just actual-string stream))
+        (t (expected string stream))))))
 
 (defun accept-char (char)
   "Return a parser that accepts the given character value."
   (lambda (stream)
     ;; TODO deal with EOF here
-    (let ((actual-char (peek-char nil stream)))
-      (if (char= char actual-char)
-          (prog1 (just actual-char stream)
-            (read-char stream))
-          (expected char stream)))))
+    (let ((actual-char (peek-char nil stream nil)))
+      (cond
+        ((null actual-char) (eof stream))
+        ((char= char actual-char)
+         (just (read-char stream) stream))
+        (t (expected char stream))))))
 
 (defun accept-char-if (predicate)
   "Return a parser that accepts a character if the given predicate returns true."
   (lambda (stream)
-    (let ((actual-char (peek-char nil stream)))
-      (if (funcall predicate actual-char)
-          (prog1 (just actual-char stream)
-            (read-char stream))
-          (expected predicate stream)))))
+    (let ((actual-char (peek-char nil stream nil)))
+      (cond
+        ((null actual-char) (eof stream))
+        ((funcall predicate actual-char)
+         (just (read-char stream) stream))
+        (t (expected predicate stream))))))
 
 (defmacro parser-let (bindings &body body)
   "Return a parser that binds a new variable to a parser result in each
