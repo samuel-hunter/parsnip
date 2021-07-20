@@ -25,10 +25,12 @@
 
 (define-condition expected-element ()
   ((name :initarg :name)
-   (stream :initarg :stream))
+   (stream :initarg :stream)
+   (position :initarg :position))
   (:report (lambda (condition stream)
-             (format stream "Expected element ~S"
-                     (slot-value condition 'name)))))
+             (with-slots (name position) condition
+               (format stream "Expected element ~S (position ~D)"
+                       name position)))))
 
 (defclass result ()
   ((position :initarg :position :reader result-position)))
@@ -76,6 +78,7 @@
       (eof (error 'end-of-file :stream stream))
       (expected (error 'expected-element
                        :name (expected-name result)
+                       :position (result-position result)
                        :stream stream))
       (result (just-value result)))))
 
@@ -100,7 +103,6 @@
   "Return a parser that accepts the given string value."
   (lambda (stream)
     (let ((actual-string (make-string (length string))))
-      ;; TODO deal with EOF here
       (cond
         ((< (read-sequence actual-string stream)
             (length string))
@@ -112,7 +114,6 @@
 (defun accept-char (char)
   "Return a parser that accepts the given character value."
   (lambda (stream)
-    ;; TODO deal with EOF here
     (let ((actual-char (peek-char nil stream nil)))
       (cond
         ((null actual-char) (eof stream))
@@ -180,13 +181,18 @@
                           (expected parser stream))))))
 
 (defun parser-try (parser)
-  (declare (ignore parser))
-  (TODO))
+  (lambda (stream)
+    (let ((position (file-position stream)))
+      (errormap-result (funcall parser stream)
+                       (lambda (err)
+                         (file-position stream position)
+                         err)))))
 
 (defun parser-name (name parser)
   "Wraps a name around a parser, so that errors are given a keyword what to expect."
-  (declare (ignore name parser))
-  (TODO))
+  (lambda (stream)
+    (expectmap-result (funcall parser stream)
+                      (constantly (expected name stream)))))
 
 (defun accept-charbag (char-bag)
   "Return a parser that accepts any character within the given char bag."
