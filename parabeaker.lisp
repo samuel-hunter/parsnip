@@ -1,5 +1,8 @@
 (defpackage #:parabeaker
   (:use #:cl)
+  (:import-from #:alexandria
+                #:with-gensyms
+                #:curry)
   (:export #:parse
 
            #:accept-string
@@ -35,13 +38,13 @@
       (expected (error 'expected-element
                        :name (slot-value result 'name)
                        :stream stream))
-      (result (slot-value result 'value)))))
+      (result (just-value result)))))
 
 (defclass result ()
   ((position :initarg :position :reader result-position)))
 
 (defclass just (result)
-  ((value :initarg :value)))
+  ((value :initarg :value :reader just-value)))
 
 (defclass expected (result)
   ((name :initarg :name)))
@@ -78,7 +81,7 @@
 
 (defun flatmap-result (result function)
   (if (typep result 'just)
-      (funcall function result)
+      (funcall function (just-value result))
       result))
 
 (defun errormap-result (result function)
@@ -125,8 +128,15 @@
 (defmacro parser-let (bindings &body body)
   "Return a parser that binds a new variable to a parser result in each
    binding, then returns the body."
-  (declare (ignore bindings body))
-  (TODO))
+  (flet ((bind-result (stream binding body)
+           (destructuring-bind (var form) binding
+             `(flatmap-result (funcall ,form ,stream)
+                              (lambda (,var) ,body)))))
+    (with-gensyms (stream)
+      `(lambda (,stream)
+         ,(reduce (curry #'bind-result stream) bindings
+                  :initial-value `(just (progn ,@body) ,stream)
+                  :from-end t)))))
 
 (defun parser-any (&rest parsers)
   "Return a parser that attempts each parser while no input is consumed, until
