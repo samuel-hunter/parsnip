@@ -9,11 +9,17 @@
            #:accept-char
            #:accept-char-if
            #:accept-charbag
+
            #:parser-let
+
+           #:parser-progn
+           #:parser-prog1
+           #:parser-prog2
+
            #:parser-any
            #:parser-many
            #:parser-many1
-           #:parser-or
+
            #:parser-name))
 
 (in-package #:parabeaker)
@@ -130,6 +136,29 @@
         ((funcall predicate actual-char)
          (just (read-char stream) stream))
         (t (expected predicate stream))))))
+
+(defun parser-progn (&rest parsers)
+  "Compose all parsers in order and return the value of the last."
+  (reduce (lambda (curr rest)
+            (lambda (stream)
+              (flatmap-result
+                (funcall curr stream)
+                (lambda (result)
+                  (declare (ignore result))
+                  (funcall rest stream)))))
+          parsers))
+
+(defun parser-prog1 (first-parser &rest parsers)
+  "Compose all parsers in order and return the value of the first."
+  (let ((rest-parsers (apply 'parser-progn parsers)))
+    (lambda (stream)
+      (flatmap-result (funcall first-parser stream)
+                      (lambda (result)
+                        (prog1 result (funcall rest-parsers stream)))))))
+
+(defun parser-prog2 (first-parser second-parser &rest parsers)
+  "Compose all parsers in order and return the value of the second."
+  (progn first-parser (apply 'prog1 second-parser parsers)))
 
 (defmacro parser-let (bindings &body body)
   "Return a parser that binds a new variable to a parser result in each
