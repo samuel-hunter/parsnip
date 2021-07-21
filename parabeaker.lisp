@@ -10,8 +10,6 @@
            #:accept-char-if
            #:accept-charbag
 
-           #:parser-let
-
            #:parser-progn
            #:parser-prog1
            #:parser-prog2
@@ -20,7 +18,9 @@
            #:parser-many
            #:parser-many1
 
-           #:parser-name))
+           #:parser-name
+
+           #:parser-let))
 
 (in-package #:parabeaker)
 
@@ -137,6 +137,9 @@
          (just (read-char stream) stream))
         (t (expected predicate stream))))))
 
+(defun accept-charbag (char-bag)
+  "Return a parser that accepts any character within the given char bag."
+  (parser-name char-bag (accept-char-if (lambda (c) (position c char-bag)))))
 (defun parser-progn (&rest parsers)
   "Compose all parsers in order and return the value of the last."
   (reduce (lambda (curr rest)
@@ -159,19 +162,6 @@
 (defun parser-prog2 (first-parser second-parser &rest parsers)
   "Compose all parsers in order and return the value of the second."
   (progn first-parser (apply 'prog1 second-parser parsers)))
-
-(defmacro parser-let (bindings &body body)
-  "Return a parser that binds a new variable to a parser result in each
-   binding, then returns the body."
-  (flet ((bind-result (stream binding body)
-           (destructuring-bind (var form) binding
-             `(flatmap-result (funcall ,form ,stream)
-                              (lambda (,var) ,body)))))
-    (with-gensyms (stream)
-      `(lambda (,stream)
-         ,(reduce (curry #'bind-result stream) bindings
-                  :initial-value `(just (progn ,@body) ,stream)
-                  :from-end t)))))
 
 (defun parser-any (&rest parsers)
   "Return a parser that attempts each parser while no input is consumed, until
@@ -223,6 +213,16 @@
     (expectmap-result (funcall parser stream)
                       (constantly (expected name stream)))))
 
-(defun accept-charbag (char-bag)
-  "Return a parser that accepts any character within the given char bag."
-  (parser-name char-bag (accept-char-if (lambda (c) (position c char-bag)))))
+(defmacro parser-let (bindings &body body)
+  "Return a parser that binds a new variable to a parser result in each
+   binding, then returns the body."
+  (flet ((bind-result (stream binding body)
+           (destructuring-bind (var form) binding
+             `(flatmap-result (funcall ,form ,stream)
+                              (lambda (,var) ,body)))))
+    (with-gensyms (stream)
+      `(lambda (,stream)
+         ,(reduce (curry #'bind-result stream) bindings
+                  :initial-value `(just (progn ,@body) ,stream)
+                  :from-end t)))))
+
