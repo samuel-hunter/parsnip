@@ -7,7 +7,7 @@
   :description "Quick and unopinionated parser combinators"
   :author "Samuel Hunter"
   :license  "BSD 3-Clause"
-  :version "0.0.1"
+  :version "0.0.2"
   :depends-on (#:alexandria
                #:trivial-lazy)
   :components ((:file "parsnip"))
@@ -17,7 +17,7 @@
   :description "Parsnip testing suite"
   :author "Samuel Hunter"
   :license "BSD 3-Clause"
-  :version "0.0.1"
+  :version "0.0.2"
   :depends-on (#:parsnip
                #:parachute)
   :components ((:file "test"))
@@ -28,7 +28,7 @@
   :description "Parsnip language examples"
   :author "Samuel Hunter"
   :license "BSD 3-Clause"
-  :version "0.0.1"
+  :version "0.0.2"
   :depends-on (#:parsnip)
   :components ((:module :examples
                 :components ((:file "json")
