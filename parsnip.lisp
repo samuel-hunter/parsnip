@@ -9,6 +9,8 @@
   (:export #:parse
            #:parser-expected-element
 
+           #:map-parser
+
            #:accept-char
            #:accept-char-if
            #:accept-string
@@ -20,6 +22,7 @@
            #:parser-any
            #:parser-many
            #:parser-many1
+           #:parser-or
 
            #:parser-try
            #:parser-name
@@ -217,6 +220,14 @@
                     (map-parser (parser-many parser)
                                 (curry #'cons first-result)))))
 
+(defun parser-or (parser &optional default)
+  "If the given parser returns an error, give a default value instaed."
+  (lambda (stream)
+    (errormap-result (funcall parser stream)
+                     (lambda (err)
+                       (declare (ignore err))
+                       (just default stream)))))
+
 (defun parser-try (parser)
   "When the child parser fails, attempt to rewind the stream."
   (lambda (stream)
@@ -230,7 +241,9 @@
   "Wraps a name around a parser, so that errors are given a keyword what to expect."
   (lambda (stream)
     (expectmap-result (funcall parser stream)
-                      (constantly (expected name stream)))))
+                      (lambda (err)
+                        (declare (ignore err))
+                        (expected name stream)))))
 
 (defmacro parser-let (bindings &body body)
   "Return a parser that binds a new variable to a parser result in each
