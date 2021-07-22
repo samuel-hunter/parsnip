@@ -1,4 +1,5 @@
-(defpackage #:parsnip
+(defpackage #:xyz.shunter.parsnip
+  (:nicknames #:parsnip)
   (:use #:cl)
   (:import-from #:alexandria
                 #:with-gensyms
@@ -26,7 +27,7 @@
            #:parser-let
            #:parser-defer))
 
-(in-package #:parsnip)
+(in-package #:xyz.shunter.parsnip)
 
 
 
