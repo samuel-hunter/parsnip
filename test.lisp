@@ -18,8 +18,8 @@
 
 ;; Unit Tests
 
-(define-test accept-char
-  (let ((parser (accept-char #\a)))
+(define-test char-parser
+  (let ((parser (char-parser #\a)))
     (is char= #\a
         (parse-string parser "abc"))
 
@@ -32,8 +32,8 @@
     (fail (parse-string parser "")
           'end-of-file)))
 
-(define-test accept-char-if
-  (let ((parser (accept-char-if #'digit-char-p)))
+(define-test predicate-parser
+  (let ((parser (predicate-parser #'digit-char-p)))
     (is char= #\0
         (parse-string parser "0"))
 
@@ -49,8 +49,8 @@
     (fail (parse-string parser "")
           'end-of-file)))
 
-(define-test accept-string
-  (let ((parser (accept-string "foo")))
+(define-test string-parser
+  (let ((parser (string-parser "foo")))
     (is string= "foo"
         (parse-string parser "foo"))
 
@@ -66,18 +66,18 @@
     (fail (parse-string parser "")
           'end-of-file)))
 
-(define-test parser-progn
-  :depends-on (accept-char)
-  (let ((a (parser-progn (accept-char #\a))))
-    ;; parser-progn with a single element should act like its child parser
+(define-test parse-progn
+  :depends-on (char-parser)
+  (let ((a (parse-progn (char-parser #\a))))
+    ;; parse-progn with a single element should act like its child parser
     (is char= #\a
         (parse-string a "a"))
 
     (fail (parse-string a "z")
           'parser-expected-element))
 
-  (let ((ab (parser-progn (accept-char #\a)
-                          (accept-char #\b))))
+  (let ((ab (parse-progn (char-parser #\a)
+                          (char-parser #\b))))
     (is char= #\b
         (parse-string ab "ab"))
 
@@ -87,9 +87,9 @@
     (fail (parse-string ab "b")
           'parser-expected-element))
 
-  (let ((abc (parser-progn (accept-char #\a)
-                           (accept-char #\b)
-                           (accept-char #\c))))
+  (let ((abc (parse-progn (char-parser #\a)
+                           (char-parser #\b)
+                           (char-parser #\c))))
     (is char= #\c
         (parse-string abc "abc"))
 
@@ -105,18 +105,18 @@
     (fail (parse-string abc "c")
           'parser-expected-element)))
 
-(define-test parser-prog1
-  :depends-on (accept-char)
-  (let ((a (parser-prog1 (accept-char #\a))))
-    ;; parser-prog1 with a single element should act like its child parser
+(define-test parse-prog1
+  :depends-on (char-parser)
+  (let ((a (parse-prog1 (char-parser #\a))))
+    ;; parse-prog1 with a single element should act like its child parser
     (is char= #\a
         (parse-string a "a"))
 
     (fail (parse-string a "z")
           'parser-expected-element))
 
-  (let ((ab (parser-prog1 (accept-char #\a)
-                          (accept-char #\b))))
+  (let ((ab (parse-prog1 (char-parser #\a)
+                          (char-parser #\b))))
     (is char= #\a
         (parse-string ab "ab"))
 
@@ -126,9 +126,9 @@
     (fail (parse-string ab "b")
           'parser-expected-element))
 
-  (let ((abc (parser-prog1 (accept-char #\a)
-                           (accept-char #\b)
-                           (accept-char #\c))))
+  (let ((abc (parse-prog1 (char-parser #\a)
+                           (char-parser #\b)
+                           (char-parser #\c))))
     (is char= #\a
         (parse-string abc "abc"))
 
@@ -144,10 +144,10 @@
     (fail (parse-string abc "c")
           'parser-expected-element)))
 
-(define-test parser-prog2
-  :depends-on (accept-char)
-  (let ((ab (parser-prog2 (accept-char #\a)
-                          (accept-char #\b))))
+(define-test parse-prog2
+  :depends-on (char-parser)
+  (let ((ab (parse-prog2 (char-parser #\a)
+                          (char-parser #\b))))
     (is char= #\b
         (parse-string ab "ab"))
 
@@ -157,9 +157,9 @@
     (fail (parse-string ab "z")
           'parser-expected-element))
 
-  (let ((abc (parser-prog2 (accept-char #\a)
-                           (accept-char #\b)
-                           (accept-char #\c))))
+  (let ((abc (parse-prog2 (char-parser #\a)
+                           (char-parser #\b)
+                           (char-parser #\c))))
     (is char= #\b
         (parse-string abc "abc"))
 
@@ -175,18 +175,18 @@
     (fail (parse-string abc "c")
           'parser-expected-element)))
 
-(define-test parser-any
-  :depends-on (accept-char accept-string)
-  (let ((a (parser-any (accept-char #\a))))
+(define-test parse-any
+  :depends-on (char-parser string-parser)
+  (let ((a (parse-any (char-parser #\a))))
     (is char= #\a
         (parse-string a "a"))
 
     (fail (parse-string a "z")
           'parser-expected-element))
 
-  (let ((abc (parser-any (accept-char #\a)
-                         (accept-char #\b)
-                         (accept-char #\c))))
+  (let ((abc (parse-any (char-parser #\a)
+                         (char-parser #\b)
+                         (char-parser #\c))))
     (is char= #\a
         (parse-string abc "a"))
 
@@ -199,8 +199,8 @@
     (fail (parse-string abc "z")
           'parser-expected-element))
 
-  (let ((foobar (parser-any (accept-string "foo")
-                            (accept-string "bar"))))
+  (let ((foobar (parse-any (string-parser "foo")
+                            (string-parser "bar"))))
     (is string= "foo"
         (parse-string foobar "foo"))
 
@@ -208,9 +208,9 @@
           'parser-expected-element
           "parse-any fails after more than one character is read.")))
 
-(define-test parser-many
-  :depends-on (accept-char)
-  (let ((parser (parser-many (accept-char #\a))))
+(define-test parse-many
+  :depends-on (char-parser)
+  (let ((parser (parse-many (char-parser #\a))))
     (is equal (list #\a)
         (parse-string parser "a"))
 
@@ -220,9 +220,9 @@
     (is equal ()
         (parse-string parser ""))))
 
-(define-test parser-many1
-  :depends-on (accept-char)
-  (let ((parser (parser-many1 (accept-char #\a))))
+(define-test parse-many1
+  :depends-on (char-parser)
+  (let ((parser (parse-many1 (char-parser #\a))))
     (is equal (list #\a)
         (parse-string parser "a"))
 
@@ -232,10 +232,10 @@
     (fail (parse-string parser "")
           'end-of-file)))
 
-(define-test parser-let
-  :depends-on (accept-char-if)
-  (let ((parser (parser-let ((digit (accept-char-if #'digit-char-p))
-                             (alpha (accept-char-if #'alpha-char-p)))
+(define-test parse-let
+  :depends-on (predicate-parser)
+  (let ((parser (parse-let ((digit (predicate-parser #'digit-char-p))
+                             (alpha (predicate-parser #'alpha-char-p)))
                   (cons digit alpha))))
     (is equal (cons #\1 #\a)
         (parse-string parser "1a"))

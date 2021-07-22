@@ -16,64 +16,61 @@
 
 
 
-(defun accept-char-bag (char-bag)
-  (accept-char-if (lambda (c)
-                    (position c char-bag))))
+(defun charbag-parser (charbag)
+  (predicate-parser (lambda (c)
+                    (position c charbag))))
 
 ;;; RFC 8259 § 2. JSON Grammar
 
 ;; whitespace := ( space | tab | newline | return )*
 (defparameter *whitespace*
-  (map-parser (parser-many (accept-char-bag
+  (parse-map (parse-many (charbag-parser
                                   '(#\Space #\Tab #\Newline #\Return)))
               (constantly nil)))
 
-(defun accept-ws (parser)
-  "Trim all leading and following whitespace"
-  (parser-prog2 *whitespace*
-                parser
-                *whitespace*))
+(defun trim-ws (parser)
+  (parse-prog2 *whitespace* parser *whitespace*))
 
 ;; begin-array := ws '[' ws
 (defparameter *begin-array*
-  (accept-ws (accept-char #\[)))
+  (trim-ws (char-parser #\[)))
 
 ;; begin-object := ws '{' ws
 (defparameter *begin-object*
-  (accept-ws (accept-char #\{)))
+  (trim-ws (char-parser #\{)))
 
 ;; end-array := ws ']' ws
 (defparameter *end-array*
-  (accept-ws (accept-char #\])))
+  (trim-ws (char-parser #\])))
 
 ;; end-object := ws '}' ws
 (defparameter *end-object*
-  (accept-ws (accept-char #\})))
+  (trim-ws (char-parser #\})))
 
 ;; name-separator := ws ':' ws
 (defparameter *name-separator*
-  (accept-ws (accept-char #\:)))
+  (trim-ws (char-parser #\:)))
 
 ;; value-separator := ws ',' ws
 (defparameter *value-separator*
-  (accept-ws (accept-char #\,)))
+  (trim-ws (char-parser #\,)))
 
 ;;; RFC 8259 § 4. Objects
 
 ;; member := string name-separator value
 (defparameter *member*
-  (parser-let ((name *string*)
-               (value (parser-progn *name-separator*
+  (parse-let ((name *string*)
+               (value (parse-progn *name-separator*
                                     *value*)))
     (cons name value)))
 
 ;; object := begin-object [ member ( value-separator member ) + ] end-object
 (defparameter *object*
-  (parser-prog2
+  (parse-prog2
     *begin-object*
-    (parser-or (parser-let ((first-member *member*)
+    (parse-optional (parse-let ((first-member *member*)
                             (other-members
-                              (parser-many (parser-progn
+                              (parse-many (parse-progn
                                              *value-separator*
                                              *member*))))
                  (cons first-member other-members))
@@ -84,11 +81,11 @@
 
 ;; array := begin-array [ value ( value-separator value )+ ] end-array
 (defparameter *array*
-  (parser-prog2
+  (parse-prog2
     *begin-array*
-    (parser-or (parser-let ((first-value *value*)
+    (parse-optional (parse-let ((first-value *value*)
                             (other-values
-                              (parser-many (parser-progn
+                              (parse-many (parse-progn
                                               *value-separator*
                                               *value*))))
                  (cons first-value other-values))
@@ -99,24 +96,24 @@
 
 ;; digit := [0123456789]
 (defparameter *digit*
-  (parser-name 'digit (accept-char-if #'digit-char-p)))
+  (parse-name 'digit (predicate-parser #'digit-char-p)))
 
 ;; int := digit+
 (defparameter *int*
-  (map-parser (parser-many1 *digit*)
+  (parse-map (parse-many1 *digit*)
               (lambda (digits) (parse-integer (coerce digits 'string)))))
 
 ;; frac := '.' int
 (defparameter *frac*
-  (parser-progn (accept-char #\.)
-                (parser-let ((digits (parser-many1 *digit*)))
+  (parse-progn (char-parser #\.)
+                (parse-let ((digits (parse-many1 *digit*)))
                   (/ (parse-integer (coerce digits 'string))
                      (expt 10 (length digits))))))
 
 ;; exp := 'e' ['+' | '-'] int
 (defparameter *exp*
-  (parser-progn (accept-char #\e)
-                (parser-let ((sign (parser-or (accept-char-bag "+-") #\+))
+  (parse-progn (char-parser #\e)
+                (parse-let ((sign (parse-optional (charbag-parser "+-") #\+))
                              (number *int*))
                   (* (if (char= sign #\+)
                          1 -1)
@@ -124,10 +121,10 @@
 
 ;; number := [minus] int [frac] [exp]
 (defparameter *number*
-  (parser-let ((sign (parser-or (accept-char #\-)))
+  (parse-let ((sign (parse-optional (char-parser #\-)))
                (whole-part *int*)
-               (frac-part (parser-or *frac* 0))
-               (exp-part (parser-or *exp* 0)))
+               (frac-part (parse-optional *frac* 0))
+               (exp-part (parse-optional *exp* 0)))
     (setf sign (if sign -1 1))
     (if (and (zerop frac-part)
              (zerop exp-part))
@@ -137,7 +134,7 @@
 ;; RFC 8259 § 7. Strings
 
 (defparameter *char-code*
-  (parser-let ((char (accept-char-bag "\"\\/bfnrtu")))
+  (parse-let ((char (charbag-parser "\"\\/bfnrtu")))
     (print char)
     (eswitch (char :test char=)
       (#\" #\") ;; " => " quotation mark
@@ -151,34 +148,34 @@
 
 ;; char := unescaped | '\' char-code
 (defparameter *char*
-  (parser-any (parser-progn (accept-char #\\)
+  (parse-any (parse-progn (char-parser #\\)
                             *char-code*)
-              (accept-char-if (lambda (c) (not (char= c #\"))))))
+              (predicate-parser (lambda (c) (not (char= c #\"))))))
 
 ;; string := quotation char+ quotation
 (defparameter *string*
-  (parser-let ((chars (parser-prog2
-                        (accept-char #\")
-                        (parser-many *char*)
-                        (accept-char #\"))))
+  (parse-let ((chars (parse-prog2
+                        (char-parser #\")
+                        (parse-many *char*)
+                        (char-parser #\"))))
     (coerce chars 'string)))
 
 ;; RFC 8259 § 3. Values
 
-(defun accept-literal (start remaining-name value)
+(defun literal-parser (start remaining-name value)
   ;; Separate the starting char and remaining name so that the parser can peek
   ;; at a single char before reading the rest of the name. Possible since every
   ;; literal has a unique character (f, n, t).
-  (map-parser (parser-progn (accept-char start)
-                            (accept-string remaining-name))
+  (parse-map (parse-progn (char-parser start)
+                            (string-parser remaining-name))
               (constantly value)))
 
 ;; value := 'false' | 'null' | 'true' | object | array | number | string
 (defparameter *value*
-  (parser-any
-    (accept-literal #\f "alse" :false)
-    (accept-literal #\n "ull" :null)
-    (accept-literal #\t "rue" :true)
+  (parse-any
+    (literal-parser #\f "alse" :false)
+    (literal-parser #\n "ull" :null)
+    (literal-parser #\t "rue" :true)
     *object*
     *array*
     *number*
@@ -186,7 +183,7 @@
 
 ;; text := ws value ws
 (defparameter *text*
-  (accept-ws *value*))
+  (trim-ws *value*))
 
 
 

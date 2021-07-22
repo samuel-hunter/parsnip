@@ -14,26 +14,27 @@
   (:export #:parse
            #:parser-expected-element
 
-           #:map-parser
+           #:char-parser
+           #:predicate-parser
+           #:string-parser
 
-           #:accept-char
-           #:accept-char-if
-           #:accept-string
+           #:parse-flatmap
+           #:parse-map
 
-           #:parser-progn
-           #:parser-prog1
-           #:parser-prog2
+           #:parse-progn
+           #:parse-prog1
+           #:parse-prog2
 
-           #:parser-any
-           #:parser-many
-           #:parser-many1
-           #:parser-or
+           #:parse-any
+           #:parse-many
+           #:parse-many1
+           #:parse-optional
 
-           #:parser-try
-           #:parser-name
+           #:parse-try
+           #:parse-name
 
-           #:parser-let
-           #:parser-defer))
+           #:parse-let
+           #:parse-defer))
 
 (in-package #:xyz.shunter.parsnip)
 
@@ -102,40 +103,26 @@
 
 ;; Higher-order parsing functions
 
-(defun flatmap-result (result function)
+(defun result-flatmap (result function)
   (if (typep result 'just)
       (funcall function (just-value result))
       result))
 
-(defun errormap-result (result function)
+(defun result-errormap (result function)
   (if (typep result 'just)
       result
       (funcall function result)))
 
-(defun expectmap-result (result function)
+(defun result-expectmap (result function)
   (if (typep result 'expected)
       (funcall function result)
       result))
 
-(defun flatmap-parser (parser function)
-  (lambda (stream)
-    (flatmap-result (funcall parser stream)
-                    (compose
-                      (rcurry #'funcall stream)
-                      function))))
-
-(defun map-parser (parser function)
-  (lambda (stream)
-    (flatmap-result (funcall parser stream)
-                    (compose
-                      (rcurry 'just stream)
-                      function))))
-
 
 
-;; Primitive Parsers
+;; Parsers
 
-(defun accept-char (char)
+(defun char-parser (char)
   "Return a parser that accepts the given character value."
   (lambda (stream)
     (let ((actual-char (peek-char nil stream nil)))
@@ -145,7 +132,7 @@
          (just (read-char stream) stream))
         (t (expected char stream))))))
 
-(defun accept-char-if (predicate)
+(defun predicate-parser (predicate)
   "Return a parser that accepts a character if the given predicate returns true."
   (lambda (stream)
     (let ((actual-char (peek-char nil stream nil)))
@@ -155,7 +142,7 @@
          (just (read-char stream) stream))
         (t (expected predicate stream))))))
 
-(defun accept-string (string)
+(defun string-parser (string)
   "Return a parser that accepts the given string value."
   (lambda (stream)
     (let ((actual-string (make-string (length string))))
@@ -169,46 +156,66 @@
 
 
 
-;; Parser Combinators
+;; Combinators
 
-(defun parser-progn (&rest parsers)
-  "Compose all parsers in order and return the value of the last."
+(defun parse-flatmap (parser function)
+  "If the parser returns a value, apply the parser-bearing function to it and run the transformed parser"
+  (lambda (stream)
+    (result-flatmap (funcall parser stream)
+                    (compose
+                      (rcurry #'funcall stream)
+                      function))))
+
+(defun parse-map (parser function)
+  "If the parser returns a value, apply the function to it and return the result."
+  (lambda (stream)
+    (result-flatmap (funcall parser stream)
+                    (compose
+                      (rcurry 'just stream)
+                      function))))
+
+(defun parse-progn (&rest parsers)
+  "Return a parser that applies each parser in order and if successful, return the value of the last."
   (reduce (lambda (curr rest)
-            (flatmap-parser curr (constantly rest)))
+            (parse-flatmap curr (constantly rest)))
           parsers
           :from-end t))
 
-(defun parser-prog1 (first-parser &rest parsers)
-  "Compose all parsers in order and return the value of the first."
+(defun parse-prog1 (first-parser &rest parsers)
+  "Return a parser that applies each parser in order and if successful, return the value of the first."
   (reduce (lambda (curr rest)
-            (flatmap-parser
+            (parse-flatmap
               curr (lambda (first-result)
-                     (map-parser rest (constantly first-result)))))
+                     (parse-map rest (constantly first-result)))))
           (cons first-parser parsers)
           :from-end t))
 
-(defun parser-prog2 (first-parser second-parser &rest parsers)
-  "Compose all parsers in order and return the value of the second."
-  (parser-progn first-parser (apply 'parser-prog1 second-parser parsers)))
+(defun parse-prog2 (first-parser second-parser &rest parsers)
+  "Return a parser that applies each parser in order and if successful, return the value of the second."
+  (parse-progn first-parser (apply 'parse-prog1 second-parser parsers)))
 
 ;; TODO figure out how to detect if characters have been consumed without file-position
-(defun parser-any (&rest parsers)
-  "Return a parser that attempts each parser while no input is consumed, until
-   one parser succeeds."
+(defun parse-any (&rest parsers)
+  "Return a parser that applies each parser in order until success and return the value.
+
+   Return a failure if all parsers are exhausted with a list of all expected values.
+   Return a failure if one parser consumed from the stream and failed.
+   Return a failure if any parser hit end-of-file."
   (lambda (stream)
     (loop
       :with position := (file-position stream)
       :for parser :in parsers
       :for result := (funcall parser stream)
       :when (typep result '(or just eof))
-        :return result
+      :return result
       :collect (expected-name result) :into expecteds
       :until (> (file-position stream) position)
       :finally (return (expected expecteds stream)))))
 
 ;; TODO figure out how to detect if characters have been consumed without file-position
-(defun parser-many (parser)
-  "Return a parser that keeps parsing the given parser until failure."
+(defun parse-many (parser)
+  "Return a parser that collects a list of successful values until failure.
+   If there are no values, return an empty list."
   (lambda (stream)
     (loop
       :for position := (file-position stream)
@@ -220,53 +227,53 @@
                            result
                            (just values stream))))))
 
-(defun parser-many1 (parser)
-  "Return a parser that keeps parsing the given parser until failure, at least once."
-  (flatmap-parser parser
-                  (lambda (first-result)
-                    (map-parser (parser-many parser)
-                                (curry #'cons first-result)))))
+(defun parse-many1 (parser)
+  "Return a parser that collects a list of successful values until failure.
+   If there are no values, signal a failure."
+  (parse-flatmap parser
+                 (lambda (first-result)
+                   (parse-map (parse-many parser)
+                              (curry #'cons first-result)))))
 
-(defun parser-or (parser &optional default)
+(defun parse-optional (parser &optional default)
   "If the given parser returns an error, give a default value instaed."
   (lambda (stream)
-    (errormap-result (funcall parser stream)
+    (result-errormap (funcall parser stream)
                      (lambda (err)
                        (declare (ignore err))
                        (just default stream)))))
 
-(defun parser-try (parser)
-  "When the child parser fails, attempt to rewind the stream. Only works for
-   seekable streams."
+(defun parse-try (parser)
+  "Return a parser that attempts to rewind the stream on failure. Only works when parsing seekable streams."
   (lambda (stream)
     (let ((position (file-position stream)))
-      (errormap-result (funcall parser stream)
+      (result-errormap (funcall parser stream)
                        (lambda (err)
                          (file-position stream position)
                          err)))))
 
-(defun parser-name (name parser)
-  "Wraps a name around a parser, so that errors are given a keyword what to expect."
+(defun parse-name (name parser)
+  "Transform the parser to signal the name of the expected element if not found."
   (lambda (stream)
-    (expectmap-result (funcall parser stream)
+    (result-expectmap (funcall parser stream)
                       (lambda (err)
                         (declare (ignore err))
                         (expected name stream)))))
 
-(defmacro parser-let (bindings &body body)
+(defmacro parse-let (bindings &body body)
   "Return a parser that binds a new variable to a parser result in each
    binding, then returns the body."
-  (flet ((bind-result (stream binding body)
+  (flet ((result-bind (stream binding body)
            (destructuring-bind (var form) binding
-             `(flatmap-result (funcall ,form ,stream)
+             `(result-flatmap (funcall ,form ,stream)
                               (lambda (,var) ,body)))))
     (with-gensyms (stream)
       `(lambda (,stream)
-         ,(reduce (curry #'bind-result stream) bindings
+         ,(reduce (curry #'result-bind stream) bindings
                   :initial-value `(just (progn ,@body) ,stream)
                   :from-end t)))))
 
-(defmacro parser-defer (form &key (thread-safe t))
+(defmacro parse-defer (form &key (thread-safe t))
   "Defer evaluating the parser-returning FORM until the parser is called.
    Useful for circular-referencing parsers."
   (with-gensyms (stream parser)
