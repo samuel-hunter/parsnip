@@ -1,3 +1,8 @@
+;;; s-exp.lisp - Parsnip example symbolic expression reader
+
+;;; Copyright 2021 Samuel Hunter <samuel (at) shunter (dot) xyz>
+;;; BSD-3-Clause
+
 (defpackage #:xyz.shunter.parsnip.examples.s-exp
   (:nicknames #:parsnip.examples.s-exp)
   (:use #:cl #:parsnip)

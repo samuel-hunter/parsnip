@@ -1,3 +1,8 @@
+;;; json.lisp - Parsnip example JSON format reader
+
+;;; Copyright 2021 Samuel Hunter <samuel (at) shunter (dot) xyz>
+;;; BSD-3-Clause
+
 (defpackage #:xyz.shunter.parsnip.examples.json
   (:nicknames #:parsnip.examples.json)
   (:documentation "A Parsnip implementation of a JSON reader")
