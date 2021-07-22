@@ -18,3 +18,13 @@
   :components ((:file "test"))
   :perform (asdf:test-op (op c)
              (uiop:symbol-call :parachute :test :xyz.shunter.parsnip.test)))
+
+(asdf:defsystem #:parsnip/examples
+  :description "Parsnip language examples"
+  :author "Samuel Hunter"
+  :license "BSD 3-Clause"
+  :version "0.0.1"
+  :depends-on (#:parsnip)
+  :components ((:module :examples
+                :components ((:file "json")
+                             (:file "s-exp")))))
