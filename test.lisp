@@ -1,7 +1,7 @@
-(defpackage parsnip.test
+(defpackage #:xyz.shunter.parsnip.test
   (:use #:cl #:parsnip #:parachute))
 
-(in-package #:parsnip.test)
+(in-package #:xyz.shunter.parsnip.test)
 
 
 

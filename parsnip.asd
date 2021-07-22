@@ -17,4 +17,4 @@
                #:parachute)
   :components ((:file "test"))
   :perform (asdf:test-op (op c)
-             (uiop:symbol-call :parachute :test :parsnip.test)))
+             (uiop:symbol-call :parachute :test :xyz.shunter.parsnip.test)))
