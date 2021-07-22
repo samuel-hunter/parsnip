@@ -217,7 +217,7 @@
 
 (define-test parser-many1
   :depends-on (accept-char)
-  (let ((parser (parser-many (accept-char #\a))))
+  (let ((parser (parser-many1 (accept-char #\a))))
     (is equal (list #\a)
         (parse-string parser "a"))
 
