@@ -4,11 +4,11 @@
                 #:with-gensyms
                 #:curry)
   (:export #:parse
+           #:parser-expected-element
 
-           #:accept-string
            #:accept-char
            #:accept-char-if
-           #:accept-charbag
+           #:accept-string
 
            #:parser-progn
            #:parser-prog1
@@ -20,7 +20,8 @@
 
            #:parser-name
 
-           #:parser-let))
+           #:parser-let
+           #:parser-defer))
 
 (in-package #:parabeaker)
 
@@ -29,7 +30,7 @@
 (defmacro TODO ()
   `(error "Not implemented"))
 
-(define-condition expected-element ()
+(define-condition parser-expected-element ()
   ((name :initarg :name)
    (stream :initarg :stream)
    (position :initarg :position))
@@ -82,11 +83,11 @@
   (let ((result (funcall parser stream)))
     (etypecase result
       (eof (error 'end-of-file :stream stream))
-      (expected (error 'expected-element
+      (expected (error 'parser-expected-element
                        :name (expected-name result)
                        :position (result-position result)
                        :stream stream))
-      (result (just-value result)))))
+      (just (just-value result)))))
 
 (defun flatmap-result (result function)
   (if (typep result 'just)
@@ -104,18 +105,6 @@
       result))
 
 
-
-(defun accept-string (string)
-  "Return a parser that accepts the given string value."
-  (lambda (stream)
-    (let ((actual-string (make-string (length string))))
-      (cond
-        ((< (read-sequence actual-string stream)
-            (length string))
-         (eof stream))
-        ((string= actual-string string)
-         (just actual-string stream))
-        (t (expected string stream))))))
 
 (defun accept-char (char)
   "Return a parser that accepts the given character value."
@@ -137,10 +126,19 @@
          (just (read-char stream) stream))
         (t (expected predicate stream))))))
 
-(defun accept-charbag (char-bag)
-  "Return a parser that accepts any character within the given char bag."
-  (parser-name char-bag (accept-char-if (lambda (c) (position c char-bag)))))
-(defun parser-progn (&rest parsers)
+(defun accept-string (string)
+  "Return a parser that accepts the given string value."
+  (lambda (stream)
+    (let ((actual-string (make-string (length string))))
+      (cond
+        ((< (read-sequence actual-string stream)
+            (length string))
+         (eof stream))
+        ((string= actual-string string)
+         (just actual-string stream))
+        (t (expected string stream))))))
+
+(defun parser-progn (first-parser &rest parsers)
   "Compose all parsers in order and return the value of the last."
   (reduce (lambda (curr rest)
             (lambda (stream)
@@ -149,19 +147,22 @@
                 (lambda (result)
                   (declare (ignore result))
                   (funcall rest stream)))))
-          parsers))
+          (cons first-parser parsers)
+          :from-end t))
 
 (defun parser-prog1 (first-parser &rest parsers)
   "Compose all parsers in order and return the value of the first."
-  (let ((rest-parsers (apply 'parser-progn parsers)))
+  (let ((rest-parsers (apply 'parser-progn (cons first-parser parsers))))
     (lambda (stream)
-      (flatmap-result (funcall first-parser stream)
-                      (lambda (result)
-                        (prog1 result (funcall rest-parsers stream)))))))
+      (flatmap-result
+        (funcall first-parser stream)
+        (lambda (first-result)
+          (progn rest-parsers
+                 (constantly (just first-result stream))))))))
 
 (defun parser-prog2 (first-parser second-parser &rest parsers)
   "Compose all parsers in order and return the value of the second."
-  (progn first-parser (apply 'prog1 second-parser parsers)))
+  (parser-progn first-parser (apply 'parser-prog1 second-parser parsers)))
 
 (defun parser-any (&rest parsers)
   "Return a parser that attempts each parser while no input is consumed, until
@@ -226,3 +227,10 @@
                   :initial-value `(just (progn ,@body) ,stream)
                   :from-end t)))))
 
+(defmacro parser-defer (form &key (thread-safe t))
+  "Defer evaluating the parser-returning FORM until the parser is called.
+   Useful for circular-referencing parsers."
+  (with-gensyms (stream parser)
+    `(let ((,parser (trivial-lazy:delay ,form :thread-safe ,thread-safe)))
+       (lambda (,stream)
+         (funcall (trivial-lazy:force ,parser) ,stream)))))
