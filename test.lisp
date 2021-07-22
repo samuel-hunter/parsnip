@@ -1,3 +1,8 @@
+;;; test.lisp - Parsnip library test suite
+
+;;; Copyright 2021 Samuel Hunter <samuel (at) shunter (dot) xyz>
+;;; BSD-3-Clause
+
 (defpackage #:xyz.shunter.parsnip.test
   (:use #:cl #:parsnip #:parachute))
 

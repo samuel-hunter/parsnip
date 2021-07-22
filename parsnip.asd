@@ -1,3 +1,8 @@
+;;; parsnip.asd - Parsnip library system definitions
+
+;;; Copyright 2021 Samuel Hunter <samuel (at) shunter (dot) xyz>
+;;; BSD-3-Clause
+
 (asdf:defsystem #:parsnip
   :description "Quick and unopinionated parser combinators"
   :author "Samuel Hunter"
