@@ -1,7 +1,7 @@
-(defpackage parabeaker.test
-  (:use #:cl #:parabeaker #:parachute))
+(defpackage parsnip.test
+  (:use #:cl #:parsnip #:parachute))
 
-(in-package #:parabeaker.test)
+(in-package #:parsnip.test)
 
 
 

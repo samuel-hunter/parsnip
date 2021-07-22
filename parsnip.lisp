@@ -1,4 +1,4 @@
-(defpackage #:parabeaker
+(defpackage #:parsnip
   (:use #:cl)
   (:import-from #:alexandria
                 #:with-gensyms
@@ -26,7 +26,7 @@
            #:parser-let
            #:parser-defer))
 
-(in-package #:parabeaker)
+(in-package #:parsnip)
 
 
 
