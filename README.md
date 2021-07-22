@@ -9,6 +9,9 @@ I don't trust third-party libraries without self-confidence, so I've made my own
 
 - [ ] The external API is stable, including primitive parsers and parser combinators
   - [ ] All parsers are limited to a non-seeking stream with a 1-character peek buffer (outside `parser-try`)
+  - [ ] Some robust way to figure out error handling.
+        An ideal error grabs everything at start, and signals it off to a dispatcher.
+	I'm not sure if what I have right now needs more types of errors, or needs an ability for programmers to provide their own types.
 - [ ] Code tests
   - [ ] All primitive parsers and non-macro parser combinators are unit-tested
   - [ ] 95% code coverage (use Coveralls, perhaps?)
