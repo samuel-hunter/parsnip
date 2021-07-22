@@ -18,6 +18,7 @@
            #:parser-many
            #:parser-many1
 
+           #:parser-try
            #:parser-name
 
            #:parser-let
@@ -138,7 +139,7 @@
          (just actual-string stream))
         (t (expected string stream))))))
 
-(defun parser-progn (first-parser &rest parsers)
+(defun parser-progn (&rest parsers)
   "Compose all parsers in order and return the value of the last."
   (reduce (lambda (curr rest)
             (lambda (stream)
@@ -147,18 +148,23 @@
                 (lambda (result)
                   (declare (ignore result))
                   (funcall rest stream)))))
-          (cons first-parser parsers)
+          parsers
           :from-end t))
 
 (defun parser-prog1 (first-parser &rest parsers)
   "Compose all parsers in order and return the value of the first."
-  (let ((rest-parsers (apply 'parser-progn (cons first-parser parsers))))
-    (lambda (stream)
-      (flatmap-result
-        (funcall first-parser stream)
-        (lambda (first-result)
-          (progn rest-parsers
-                 (constantly (just first-result stream))))))))
+  (reduce (lambda (curr rest)
+            (lambda (stream)
+              (flatmap-result
+                (funcall curr stream)
+                (lambda (first-result)
+                  (flatmap-result
+                    (funcall rest stream)
+                    (lambda (result)
+                      (declare (ignore result))
+                      (just first-result stream)))))))
+          (cons first-parser parsers)
+          :from-end t))
 
 (defun parser-prog2 (first-parser second-parser &rest parsers)
   "Compose all parsers in order and return the value of the second."
@@ -194,13 +200,15 @@
 (defun parser-many1 (parser)
   "Return a parser that keeps parsing the given parser until failure, at least once."
   (lambda (stream)
-    (flatmap-result (funcall (parser-many parser) stream)
-                    (lambda (results)
-                      (if results
-                          (just results stream)
-                          (expected parser stream))))))
+    (flatmap-result (funcall parser stream)
+                    (lambda (first-result)
+                      (flatmap-result (funcall (parser-many parser) stream)
+                                      (lambda (results)
+                                        (just (cons first-result results)
+                                              stream)))))))
 
 (defun parser-try (parser)
+  "When the child parser fails, attempt to rewind the stream."
   (lambda (stream)
     (let ((position (file-position stream)))
       (errormap-result (funcall parser stream)
