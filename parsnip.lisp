@@ -72,15 +72,15 @@
 (defun just (value stream)
   (make-instance 'just
                  :value value
-                 :position (file-position stream)))
+                 :position (ignore-errors (file-position stream))))
 
 (defun expected (name stream)
   (make-instance 'expected
                  :name name
-                 :position (file-position stream)))
+                 :position (ignore-errors (file-position stream))))
 
 (defun eof (stream)
-  (make-instance 'eof :position (file-position stream)))
+  (make-instance 'eof :position (ignore-errors (file-position stream))))
 
 (defun parse (parser stream)
   "Run the given parser."
@@ -186,6 +186,7 @@
   "Compose all parsers in order and return the value of the second."
   (parser-progn first-parser (apply 'parser-prog1 second-parser parsers)))
 
+;; TODO figure out how to detect if characters have been consumed without file-position
 (defun parser-any (&rest parsers)
   "Return a parser that attempts each parser while no input is consumed, until
    one parser succeeds."
@@ -200,6 +201,7 @@
       :until (> (file-position stream) position)
       :finally (return (expected expecteds stream)))))
 
+;; TODO figure out how to detect if characters have been consumed without file-position
 (defun parser-many (parser)
   "Return a parser that keeps parsing the given parser until failure."
   (lambda (stream)
@@ -229,7 +231,8 @@
                        (just default stream)))))
 
 (defun parser-try (parser)
-  "When the child parser fails, attempt to rewind the stream."
+  "When the child parser fails, attempt to rewind the stream. Only works for
+   seekable streams."
   (lambda (stream)
     (let ((position (file-position stream)))
       (errormap-result (funcall parser stream)
