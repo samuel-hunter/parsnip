@@ -9,6 +9,7 @@
 
 
 (defun read-symbolic-expression (&optional (stream *standard-input*))
+  (declare (ignore stream))
   (error "TODO: The symbolic expression reader is not implemented yet"))
 
 (defun read-symbolic-expression-from-string (string)
