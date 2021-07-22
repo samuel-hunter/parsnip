@@ -2,7 +2,9 @@
   (:use #:cl)
   (:import-from #:alexandria
                 #:with-gensyms
-                #:curry)
+                #:curry
+                #:rcurry
+                #:compose)
   (:export #:parse
            #:parser-expected-element
 
@@ -27,9 +29,6 @@
 (in-package #:parabeaker)
 
 
-
-(defmacro TODO ()
-  `(error "Not implemented"))
 
 (define-condition parser-expected-element ()
   ((name :initarg :name)
@@ -90,6 +89,10 @@
                        :stream stream))
       (just (just-value result)))))
 
+
+
+;; Higher-order parsing functions
+
 (defun flatmap-result (result function)
   (if (typep result 'just)
       (funcall function (just-value result))
@@ -105,7 +108,23 @@
       (funcall function result)
       result))
 
+(defun flatmap-parser (parser function)
+  (lambda (stream)
+    (flatmap-result (funcall parser stream)
+                    (compose
+                      (rcurry #'funcall stream)
+                      function))))
+
+(defun map-parser (parser function)
+  (lambda (stream)
+    (flatmap-result (funcall parser stream)
+                    (compose
+                      (rcurry 'just stream)
+                      function))))
+
 
+
+;; Primitive Parsers
 
 (defun accept-char (char)
   "Return a parser that accepts the given character value."
@@ -139,30 +158,23 @@
          (just actual-string stream))
         (t (expected string stream))))))
 
+
+
+;; Parser Combinators
+
 (defun parser-progn (&rest parsers)
   "Compose all parsers in order and return the value of the last."
   (reduce (lambda (curr rest)
-            (lambda (stream)
-              (flatmap-result
-                (funcall curr stream)
-                (lambda (result)
-                  (declare (ignore result))
-                  (funcall rest stream)))))
+            (flatmap-parser curr (constantly rest)))
           parsers
           :from-end t))
 
 (defun parser-prog1 (first-parser &rest parsers)
   "Compose all parsers in order and return the value of the first."
   (reduce (lambda (curr rest)
-            (lambda (stream)
-              (flatmap-result
-                (funcall curr stream)
-                (lambda (first-result)
-                  (flatmap-result
-                    (funcall rest stream)
-                    (lambda (result)
-                      (declare (ignore result))
-                      (just first-result stream)))))))
+            (flatmap-parser
+              curr (lambda (first-result)
+                     (map-parser rest (constantly first-result)))))
           (cons first-parser parsers)
           :from-end t))
 
@@ -199,13 +211,10 @@
 
 (defun parser-many1 (parser)
   "Return a parser that keeps parsing the given parser until failure, at least once."
-  (lambda (stream)
-    (flatmap-result (funcall parser stream)
-                    (lambda (first-result)
-                      (flatmap-result (funcall (parser-many parser) stream)
-                                      (lambda (results)
-                                        (just (cons first-result results)
-                                              stream)))))))
+  (flatmap-parser parser
+                  (lambda (first-result)
+                    (map-parser (parser-many parser)
+                                (curry #'cons first-result)))))
 
 (defun parser-try (parser)
   "When the child parser fails, attempt to rewind the stream."
