@@ -1,0 +1,31 @@
+language: generic
+os: linux
+dist: xenial
+
+env:
+  global:
+    - PATH=~/.roswell/bin:$PATH
+    - ROSWELL_BRANCH=release
+    - ROSWELL_INSTALL_DIR=$HOME/.roswell
+  jobs:
+    - LISP=sbcl-bin COVERALLS=true
+    - LISP=ccl-bin
+
+install:
+  # Install Roswell
+  - curl -L https://raw.githubusercontent.com/snmsts/roswell/$ROSWELL_BRANCH/scripts/install-for-ci.sh | sh
+  - ros install $LISP
+  - mkdir -p $ROSWELL_INSTALL_DIR/local-projects/build
+  - ln -s $TRAVIS_BUILD_DIR $ROSWELL_INSTALL_DIR/local-projects/build/
+  - ros run --load parsnip.asd --eval "(ql:quickload '(:parachute :parsnip/test))" --quit
+
+before_script:
+  - ros --version
+  - ros config
+
+script:
+  - ros run --system parachute --system parsnip/test -e  '(parachute:test-toplevel :xyz.shunter.parsnip.test)' --quit
+
+notifications:
+  email:
+    - builds@shunter.xyz
