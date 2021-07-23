@@ -114,17 +114,20 @@
 
 (defun failure-resume (result function)
   "Map a failure to a different result if it did not consume chars."
-  (if (and (typep result 'failure)
-           (not (failure-consumed-chars result)))
-      (funcall function (failure-error result))
-      result))
+  (etypecase result
+    (just result)
+    (failure (if (failure-consumed-chars result)
+                 result
+                 (funcall function (failure-error result))))))
 
 (defun failure-map (result function)
   "Map an error to a diffferent one."
-  (if (typep result 'failure)
-      (make-instance 'failure
-                     :error (funcall function (failure-error result))
-                     :consumed-chars (failure-consumed-chars result))))
+  (etypecase result
+    (just result)
+    (failure (make-instance
+               'failure
+               :error (funcall function (failure-error result))
+               :consumed-chars (failure-consumed-chars result)))))
 
 
 

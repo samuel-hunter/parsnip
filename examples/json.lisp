@@ -122,9 +122,9 @@
 ;; number := [minus] int [frac] [exp]
 (defparameter *number*
   (parse-let ((sign (parse-optional (char-parser #\-)))
-               (whole-part *int*)
-               (frac-part (parse-optional *frac* 0))
-               (exp-part (parse-optional *exp* 0)))
+              (whole-part *int*)
+              (frac-part (parse-optional *frac* 0))
+              (exp-part (parse-optional *exp* 0)))
     (setf sign (if sign -1 1))
     (if (and (zerop frac-part)
              (zerop exp-part))
@@ -134,7 +134,7 @@
 ;; RFC 8259 § 7. Strings
 
 (defparameter *char-code*
-  (parse-let ((char (charbag-parser "\"\\/bfnrtu")))
+  (parse-let ((char (charbag-parser "\"\\/bfnrt")))
     (eswitch (char :test char=)
       (#\" #\") ;; " => " quotation mark
       (#\\ #\\) ;; \ => \ reverse solidus
@@ -148,7 +148,7 @@
 ;; char := unescaped | '\' char-code
 (defparameter *char*
   (parse-any (parse-progn (char-parser #\\)
-                            *char-code*)
+                          *char-code*)
               (predicate-parser (lambda (c) (not (char= c #\"))))))
 
 ;; string := quotation char+ quotation
