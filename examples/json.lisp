@@ -135,7 +135,6 @@
 
 (defparameter *char-code*
   (parse-let ((char (charbag-parser "\"\\/bfnrtu")))
-    (print char)
     (eswitch (char :test char=)
       (#\" #\") ;; " => " quotation mark
       (#\\ #\\) ;; \ => \ reverse solidus
