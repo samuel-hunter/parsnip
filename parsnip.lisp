@@ -42,81 +42,86 @@
 
 (define-condition parser-expected-element ()
   ((name :initarg :name)
-   (stream :initarg :stream)
-   (position :initarg :position))
+   (stream :initarg :stream))
   (:report (lambda (condition stream)
              (with-slots (name position) condition
                (format stream "Expected element ~S (position ~D)"
                        name position)))))
 
 (defclass result ()
-  ((position :initarg :position :reader result-position)))
+  ())
 
 (defclass just (result)
-  ((value :initarg :value :reader just-value)))
+  ((value :initarg :value :reader just-value)
+   (position :initarg :position :reader just-position)))
 
-(defclass expected (result)
-  ((name :initarg :name :reader expected-name)))
-
-(defclass eof (result) ())
+(defclass failure (result)
+  ((error :initarg :error :reader failure-error)
+   (consumed-chars :initarg :consumed-chars
+                   :reader failure-consumed-chars)))
 
 (defmethod print-object ((object just) stream)
   (print-unreadable-object (object stream :type t)
     (with-slots (value position) object
       (format stream "~S POS=~D" value position))))
 
-(defmethod print-object ((object expected) stream)
+(defmethod print-object ((object failure) stream)
   (print-unreadable-object (object stream :type t)
-    (with-slots (name position) object
-      (format stream "~S POS=~D" name position))))
+    (with-slots (error position) object
+      (format stream "~S POS=~D" error position))))
 
-(defmethod print-object ((object eof) stream)
-  (print-unreadable-object (object stream :type t)
-    (with-slots (position) object
-      (format stream "POS=~D" position))))
-
-(defun just (value stream)
+(defun just (value position)
   (make-instance 'just
                  :value value
-                 :position (ignore-errors (file-position stream))))
+                 :position position))
 
-(defun expected (name stream)
-  (make-instance 'expected
-                 :name name
-                 :position (ignore-errors (file-position stream))))
+(defun failure (consumed-chars condition-class &rest initargs)
+  (make-instance 'failure
+                 :error (apply #'make-condition condition-class initargs)
+                 :consumed-chars consumed-chars))
 
-(defun eof (stream)
-  (make-instance 'eof :position (ignore-errors (file-position stream))))
+(defun expected (name stream consumed-chars)
+  (failure consumed-chars 'parser-expected-element
+           :name name
+           :stream stream))
+
+(defun eof (stream consumed-chars)
+  (failure consumed-chars 'end-of-file
+           :stream stream))
 
 (defun parse (parser stream)
-  "Run the given parser."
   (let ((result (funcall parser stream)))
     (etypecase result
-      (eof (error 'end-of-file :stream stream))
-      (expected (error 'parser-expected-element
-                       :name (expected-name result)
-                       :position (result-position result)
-                       :stream stream))
-      (just (just-value result)))))
+      (just (just-value result))
+      (failure (error (failure-error result))))))
 
 
 
 ;; Higher-order parsing functions
 
-(defun result-flatmap (result function)
-  (if (typep result 'just)
-      (funcall function (just-value result))
-      result))
+(defun just-flatmap (result function)
+  (etypecase result
+    (just (funcall function (just-value result)))
+    (failure result)))
 
-(defun result-errormap (result function)
-  (if (typep result 'just)
-      result
-      (funcall function result)))
+(defun just-map (result function)
+  (just-flatmap result
+                (lambda (value)
+                  (just (funcall function value)
+                        (just-position result)))))
 
-(defun result-expectmap (result function)
-  (if (typep result 'expected)
-      (funcall function result)
-      result))
+(defun failure-resume (result function)
+  (etypecase result
+    (just result)
+    (failure (funcall function (failure-error result)))))
+
+(defun failure-map (result function)
+  (failure-resume
+    result
+    (lambda (err)
+      (make-instance 'failure
+                     :error (funcall function err)
+                     :consumed-chars (failure-consumed-chars result)))))
 
 
 
@@ -127,32 +132,32 @@
   (lambda (stream)
     (let ((actual-char (peek-char nil stream nil)))
       (cond
-        ((null actual-char) (eof stream))
+        ((null actual-char) (eof stream nil))
         ((char= char actual-char)
-         (just (read-char stream) stream))
-        (t (expected char stream))))))
+         (just (read-char stream) (ignore-errors (file-position stream))))
+        (t (expected char stream nil))))))
 
 (defun predicate-parser (predicate)
   "Return a parser that accepts a character if the given predicate returns true."
   (lambda (stream)
     (let ((actual-char (peek-char nil stream nil)))
       (cond
-        ((null actual-char) (eof stream))
+        ((null actual-char) (eof stream nil))
         ((funcall predicate actual-char)
-         (just (read-char stream) stream))
-        (t (expected predicate stream))))))
+         (just (read-char stream) (ignore-errors (file-position stream))))
+        (t (expected predicate stream nil))))))
 
 (defun string-parser (string)
   "Return a parser that accepts the given string value."
   (lambda (stream)
-    (let ((actual-string (make-string (length string))))
+    (let* ((actual-string (make-string (length string)))
+           (chars-read (read-sequence actual-string stream)))
       (cond
-        ((< (read-sequence actual-string stream)
-            (length string))
-         (eof stream))
+        ((< chars-read (length string))
+         (eof stream (plusp chars-read)))
         ((string= actual-string string)
-         (just actual-string stream))
-        (t (expected string stream))))))
+         (just actual-string (ignore-errors (file-position stream))))
+        (t (expected string stream t))))))
 
 
 
@@ -161,18 +166,16 @@
 (defun parse-flatmap (parser function)
   "If the parser returns a value, apply the parser-bearing function to it and run the transformed parser"
   (lambda (stream)
-    (result-flatmap (funcall parser stream)
-                    (compose
-                      (rcurry #'funcall stream)
-                      function))))
+    (just-flatmap (funcall parser stream)
+                  (compose
+                    (rcurry #'funcall stream)
+                    function))))
 
 (defun parse-map (parser function)
   "If the parser returns a value, apply the function to it and return the result."
   (lambda (stream)
-    (result-flatmap (funcall parser stream)
-                    (compose
-                      (rcurry 'just stream)
-                      function))))
+    (just-map (funcall parser stream)
+              function)))
 
 (defun parse-progn (&rest parsers)
   "Return a parser that applies each parser in order and if successful, return the value of the last."
@@ -185,8 +188,9 @@
   "Return a parser that applies each parser in order and if successful, return the value of the first."
   (reduce (lambda (curr rest)
             (parse-flatmap
-              curr (lambda (first-result)
-                     (parse-map rest (constantly first-result)))))
+              curr
+              (lambda (first-result)
+                (parse-map rest (constantly first-result)))))
           (cons first-parser parsers)
           :from-end t))
 
@@ -194,23 +198,26 @@
   "Return a parser that applies each parser in order and if successful, return the value of the second."
   (parse-progn first-parser (apply 'parse-prog1 second-parser parsers)))
 
-;; TODO figure out how to detect if characters have been consumed without file-position
 (defun parse-any (&rest parsers)
-  "Return a parser that applies each parser in order until success and return the value.
+  "Return a parser that tries each parser in order (as long as no characters
+   are consumed) and returns the first success.
 
-   Return a failure if all parsers are exhausted with a list of all expected values.
-   Return a failure if one parser consumed from the stream and failed.
-   Return a failure if any parser hit end-of-file."
-  (lambda (stream)
-    (loop
-      :with position := (file-position stream)
-      :for parser :in parsers
-      :for result := (funcall parser stream)
-      :when (typep result '(or just eof))
-      :return result
-      :collect (expected-name result) :into expecteds
-      :until (> (file-position stream) position)
-      :finally (return (expected expecteds stream)))))
+  Return a failure with a list of expected values if all parsers are exhausted.
+  Return a failure if a failing parser consumed characters from the stream."
+  (declare (optimize debug))
+  (reduce (lambda (outer-parser inner-parser)
+            (lambda (stream)
+              (let ((result (funcall outer-parser stream)))
+                (failure-resume result
+                                (lambda (err)
+                                  (declare (ignore err))
+                                  (if (failure-consumed-chars result)
+                                      result
+                                      (funcall inner-parser stream)))))))
+          parsers
+          :from-end t
+          :initial-value (lambda (stream)
+                           (expected parsers stream nil))))
 
 ;; TODO figure out how to detect if characters have been consumed without file-position
 (defun parse-many (parser)
@@ -218,14 +225,13 @@
    If there are no values, return an empty list."
   (lambda (stream)
     (loop
-      :for position := (file-position stream)
+      :with position := (ignore-errors (file-position stream))
       :for result := (funcall parser stream)
       :while (typep result 'just)
       :collect (just-value result) :into values
-      :finally (return (if (and (typep result '(not just))
-                                (> (file-position stream) position))
+      :finally (return (if (failure-consumed-chars result)
                            result
-                           (just values stream))))))
+                           (just values position))))))
 
 (defun parse-many1 (parser)
   "Return a parser that collects a list of successful values until failure.
@@ -238,38 +244,42 @@
 (defun parse-optional (parser &optional default)
   "If the given parser returns an error, give a default value instaed."
   (lambda (stream)
-    (result-errormap (funcall parser stream)
+    (failure-resume (funcall parser stream)
                      (lambda (err)
                        (declare (ignore err))
-                       (just default stream)))))
+                       (just default (ignore-errors (file-position stream)))))))
 
 (defun parse-try (parser)
   "Return a parser that attempts to rewind the stream on failure. Only works when parsing seekable streams."
   (lambda (stream)
-    (let ((position (file-position stream)))
-      (result-errormap (funcall parser stream)
-                       (lambda (err)
-                         (file-position stream position)
-                         err)))))
+    (let ((old-position (file-position stream)))
+      (failure-resume (funcall parser stream)
+                      (lambda (failure)
+                        (when (failure-consumed-chars failure)
+                          (file-position stream old-position))
+                        failure)))))
 
 (defun parse-name (name parser)
   "Transform the parser to signal the name of the expected element if not found."
   (lambda (stream)
-    (result-expectmap (funcall parser stream)
-                      (lambda (err)
-                        (declare (ignore err))
-                        (expected name stream)))))
+    (failure-map (funcall parser stream)
+                 (lambda (err)
+                   (if (typep err 'parser-expected-element)
+                       (make-condition 'parser-expected-element
+                                       :name name
+                                       :stream (slot-value err 'stream))
+                       err)))))
 
 (defmacro parse-let (bindings &body body)
   "Return a parser that binds a new variable to a parser result in each
    binding, then returns the body."
-  (flet ((result-bind (stream binding body)
+  (flet ((just-bind (stream binding body)
            (destructuring-bind (var form) binding
-             `(result-flatmap (funcall ,form ,stream)
+             `(just-flatmap (funcall ,form ,stream)
                               (lambda (,var) ,body)))))
     (with-gensyms (stream)
       `(lambda (,stream)
-         ,(reduce (curry #'result-bind stream) bindings
+         ,(reduce (curry #'just-bind stream) bindings
                   :initial-value `(just (progn ,@body) ,stream)
                   :from-end t)))))
 
