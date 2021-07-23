@@ -232,6 +232,29 @@
     (fail (parse-string parser "")
           'end-of-file)))
 
+(define-test parse-optional
+  :depends-on (char-parser)
+  (let ((maybe-a (parse-optional (char-parser #\a))))
+    (is char= #\a
+        (parse-string maybe-a "a"))
+
+    (is eq nil
+        (parse-string maybe-a "z"))
+
+    (is eq nil
+        (parse-string maybe-a "")))
+
+  (let ((a-else-b (parse-optional (char-parser #\a)
+                                  #\b)))
+    (is char= #\a
+        (parse-string a-else-b "a"))
+
+    (is char= #\b
+        (parse-string a-else-b "b"))
+
+    (is char= #\b
+        (parse-string a-else-b ""))))
+
 (define-test parse-let
   :depends-on (predicate-parser)
   (let ((parser (parse-let ((digit (predicate-parser #'digit-char-p))
