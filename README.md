@@ -10,17 +10,21 @@ I don't trust third-party libraries without self-confidence, so I've made my own
 ## Road to Production-Readiness
 
 - [ ] The external API is stable, including primitive parsers and parser combinators
-  - [ ] All parsers are limited to a non-seeking stream with a 1-character peek buffer (outside `parser-try`)
+  - [x] All parsers are limited to a non-seeking stream with a 1-character peek buffer (outside `parse-try`)
   - [ ] Some robust way to figure out error handling.
         An ideal error grabs everything at start, and signals it off to a dispatcher.
-	I'm not sure if what I have right now needs more types of errors, or needs an ability for programmers to provide their own types.
+	The current system in place might be good already.
+	I should program some example error reporting to showcase.
 - [ ] Code tests
-  - [ ] All primitive parsers and non-macro parser combinators are unit-tested
-  - [ ] 95% code coverage (use Coveralls, perhaps?)
+  - [ ] Every function is unit-tested.
+  - [ ] 95% code coverage in `parsnip.lisp` (Tried using Coveralls, didn't work out very well. Maybe sb-cover?)
   - [ ] Benchmarks should have a reasonable speed:
-        I'm not targeting speed in this library, but it shouldn't be snailing either (TODO: How do I measure speed as "reasonable"?)
+        I'm not targeting speed in this library, but it shouldn't be snailing either. (TODO: Maybe compare speed of JSON parser with cl-json?)
 - [ ] Documentation
   - [ ] Code examples with real formats
+    - [X] JSON
+    - [ ] Symbolic expressions
+    - [ ] Minimal C-family grammar?
   - [ ] Docstrings in functions
   - [ ] Quickstart within the README
   - [ ] A full reference somewhere, maybe within the README
