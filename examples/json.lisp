@@ -4,7 +4,6 @@
 ;;; BSD-3-Clause
 
 (defpackage #:xyz.shunter.parsnip.examples.json
-  (:nicknames #:parsnip.examples.json)
   (:documentation "A Parsnip implementation of a JSON reader")
   (:use #:cl #:parsnip)
   (:import-from #:alexandria

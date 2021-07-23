@@ -21,7 +21,7 @@
   :depends-on (#:parsnip)
   :components ((:module :examples
                 :components ((:file "json")
-                             (:file "s-exp"))))
+                             (:file "s-expr"))))
   :in-order-to ((asdf:test-op (asdf:test-op :parsnip/test))))
 
 (asdf:defsystem #:parsnip/test
