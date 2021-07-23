@@ -100,28 +100,31 @@
 ;; Higher-order parsing functions
 
 (defun just-flatmap (result function)
+  "Map a return value to a different result."
   (etypecase result
     (just (funcall function (just-value result)))
     (failure result)))
 
 (defun just-map (result function)
+  "Map a return value to a different one."
   (just-flatmap result
                 (lambda (value)
                   (just (funcall function value)
                         (just-position result)))))
 
 (defun failure-resume (result function)
-  (etypecase result
-    (just result)
-    (failure (funcall function (failure-error result)))))
+  "Map a failure to a different result if it did not consume chars."
+  (if (and (typep result 'failure)
+           (not (failure-consumed-chars result)))
+      (funcall function (failure-error result))
+      result))
 
 (defun failure-map (result function)
-  (failure-resume
-    result
-    (lambda (err)
+  "Map an error to a diffferent one."
+  (if (typep result 'failure)
       (make-instance 'failure
-                     :error (funcall function err)
-                     :consumed-chars (failure-consumed-chars result)))))
+                     :error (funcall function (failure-error result))
+                     :consumed-chars (failure-consumed-chars result))))
 
 
 
@@ -207,13 +210,10 @@
   (declare (optimize debug))
   (reduce (lambda (outer-parser inner-parser)
             (lambda (stream)
-              (let ((result (funcall outer-parser stream)))
-                (failure-resume result
-                                (lambda (err)
-                                  (declare (ignore err))
-                                  (if (failure-consumed-chars result)
-                                      result
-                                      (funcall inner-parser stream)))))))
+              (failure-resume (funcall outer-parser stream)
+                              (lambda (err)
+                                (declare (ignore err))
+                                (funcall inner-parser stream)))))
           parsers
           :from-end t
           :initial-value (lambda (stream)
@@ -245,19 +245,21 @@
   "If the given parser returns an error, give a default value instaed."
   (lambda (stream)
     (failure-resume (funcall parser stream)
-                     (lambda (err)
-                       (declare (ignore err))
-                       (just default (ignore-errors (file-position stream)))))))
+                    (lambda (err)
+                      (declare (ignore err))
+                      (just default (ignore-errors (file-position stream)))))))
 
 (defun parse-try (parser)
   "Return a parser that attempts to rewind the stream on failure. Only works when parsing seekable streams."
   (lambda (stream)
-    (let ((old-position (file-position stream)))
-      (failure-resume (funcall parser stream)
-                      (lambda (failure)
-                        (when (failure-consumed-chars failure)
+    (let ((old-position (file-position stream))
+          (result (funcall parser stream)))
+      (failure-resume result
+                      (lambda (err)
+                        (declare (ignore err))
+                        (when (failure-consumed-chars result)
                           (file-position stream old-position))
-                        failure)))))
+                        result)))))
 
 (defun parse-name (name parser)
   "Transform the parser to signal the name of the expected element if not found."
