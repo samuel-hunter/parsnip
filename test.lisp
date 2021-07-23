@@ -211,26 +211,42 @@
 (define-test parse-many
   :depends-on (char-parser)
   (let ((parser (parse-many (char-parser #\a))))
-    (is equal (list #\a)
+    (is equal '(#\a)
         (parse-string parser "a"))
 
-    (is equal (list #\a #\a #\a)
+    (is equal '(#\a #\a #\a)
         (parse-string parser "aaa"))
 
     (is equal ()
-        (parse-string parser ""))))
+        (parse-string parser "")))
+
+  (let ((foos (parse-many (string-parser "foo"))))
+    (is equal '("foo" "foo" "foo")
+        (parse-string foos "foofoofoo"))
+
+    (fail (parse-string foos "foofoobar")
+          'parser-expected-element
+          "parse-many fails when the last (errorful) parse consumes input.")))
 
 (define-test parse-many1
   :depends-on (char-parser)
   (let ((parser (parse-many1 (char-parser #\a))))
-    (is equal (list #\a)
+    (is equal '(#\a)
         (parse-string parser "a"))
 
-    (is equal (list #\a #\a #\a)
+    (is equal '(#\a #\a #\a)
         (parse-string parser "aaa"))
 
     (fail (parse-string parser "")
-          'end-of-file)))
+          'end-of-file))
+
+  (let ((foos (parse-many (string-parser "foo"))))
+    (is equal '("foo" "foo" "foo")
+        (parse-string foos "foofoofoo"))
+
+    (fail (parse-string foos "foofoobar")
+          'parser-expected-element
+          "parse-many1 fails when the last (errorful) parse consumes input.")))
 
 (define-test parse-optional
   :depends-on (char-parser)
@@ -253,7 +269,15 @@
         (parse-string a-else-b "b"))
 
     (is char= #\b
-        (parse-string a-else-b ""))))
+        (parse-string a-else-b "")))
+
+  (let ((foo (parse-optional (string-parser "foo"))))
+    (is string= "foo"
+        (parse-string foo "foo"))
+
+    (fail (parse-string foo "bar")
+           'parser-expected-element
+           "parse-optional does not resume from input-consuming errors")))
 
 (define-test parse-let
   :depends-on (predicate-parser)
