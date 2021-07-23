@@ -8,7 +8,8 @@
   (:documentation "A Parsnip implementation of a JSON reader")
   (:use #:cl #:parsnip)
   (:import-from #:alexandria
-                #:eswitch)
+                #:eswitch
+                #:rcurry)
   (:export #:read-json
            #:read-json-from-string))
 
@@ -69,12 +70,12 @@
   (parse-prog2
     *begin-object*
     (parse-optional (parse-let ((first-member *member*)
-                            (other-members
-                              (parse-many (parse-progn
-                                             *value-separator*
-                                             *member*))))
-                 (cons first-member other-members))
-               nil)
+                                (other-members
+                                  (parse-many (parse-progn
+                                                *value-separator*
+                                                *member*))))
+                      (cons first-member other-members))
+                    nil)
     *end-object*))
 
 ;;; RFC 8259 § 5. Arrays
@@ -145,10 +146,25 @@
       (#\r #\Return) ;; r => Carriage return
       (#\t #\Tab)))) ;; t => Horizontal tab
 
+;; hex-digit := [0123456789ABCDEFabcdef]
+(defparameter *hex-digit*
+  (parse-name 'hexadecimal-digit
+              (predicate-parser (rcurry #'digit-char-p 16))))
+
+(defparameter *unicode-char*
+  (parse-progn (char-parser #\u)
+               (parse-map
+                 (parse-take 4 *hex-digit*)
+                 (lambda (digits)
+                   (code-char (parse-integer (coerce digits 'string)
+                                             :radix 16))))))
+
 ;; char := unescaped | '\' char-code
 (defparameter *char*
   (parse-any (parse-progn (char-parser #\\)
-                          *char-code*)
+                          (parse-any
+                            *char-code*
+                            *unicode-char*))
               (predicate-parser (lambda (c) (not (char= c #\"))))))
 
 ;; string := quotation char+ quotation

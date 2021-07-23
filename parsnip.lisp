@@ -28,6 +28,7 @@
            #:parse-any
            #:parse-many
            #:parse-many1
+           #:parse-take
            #:parse-optional
 
            #:parse-try
@@ -258,6 +259,19 @@
                    (parse-map (parse-many parser)
                               (curry #'cons first-result)))))
 
+(defun parse-take (times parser)
+  "Enhance the parser to run a given number of times and collect the results.
+   Consumes input on error if at least one parse succeeded, or the containing
+   parser consumed input on error."
+  (check-type times (integer 1 *))
+  (if (= times 1)
+      (parse-map parser
+                 #'list)
+      (parse-flatmap parser
+                     (lambda (first-result)
+                       (parse-map (parse-take (1- times) parser)
+                                  (curry #'cons first-result))))))
+
 (defun parse-optional (parser &optional default)
   "Enhance the parser to resume from an error with a default value if it did
    not consume input."
@@ -277,7 +291,6 @@
                       (lambda (err)
                         (when (failure-consumed-chars result)
                           (file-position stream old-position))
-
                         (make-instance 'failure
                                        :error err
                                        :consumed-chars nil))))))
