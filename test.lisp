@@ -4,7 +4,9 @@
 ;;; BSD-3-Clause
 
 (defpackage #:xyz.shunter.parsnip.test
-  (:use #:cl #:parsnip #:parachute))
+  (:use #:cl #:parachute
+        #:xyz.shunter.parsnip
+        #:xyz.shunter.parsnip.examples.json))
 
 (in-package #:xyz.shunter.parsnip.test)
 
@@ -13,6 +15,14 @@
 (defun parse-string (parser string)
   (with-input-from-string (stream string)
     (parse parser stream)))
+
+(defun close-enough (float-1 float-2)
+  "Return whether two decimal numbers are within tolerance (0.05%)"
+  (when (zerop (+ float-1 float-2))
+    (return-from close-enough nil))
+  (let ((difference (abs (/ (- float-1 float-2) (abs (+ float-1 float-2)) 2)))
+        (tolerance 0.0005))
+    (< difference tolerance)))
 
 
 
@@ -298,8 +308,79 @@
 
 
 
-;; Component Tests
+;; JSON Tests
 
-(define-test parse-symbolic-expression)
+(define-test json-numbers
+  (is = 123
+      (read-json-from-string "123"))
 
-(define-test parse-json-number-array)
+  (is = 50
+      (read-json-from-string "000050"))
+
+  (is = -123
+      (read-json-from-string "-123"))
+
+  (is close-enough 1.5
+      (read-json-from-string "1.5"))
+
+  (is close-enough 1.05
+      (read-json-from-string "1.05"))
+
+  (is close-enough 1e5
+      (read-json-from-string "1e5"))
+
+  (is close-enough 1e5
+      (read-json-from-string "1e+5"))
+
+  (is close-enough 1e-5
+      (read-json-from-string "1e-5"))
+
+  (is close-enough 15.0
+      (read-json-from-string "1.5e1")))
+
+(define-test json-strings
+  (is string= "hello, world"
+      (read-json-from-string "\"hello, world\""))
+
+  (is string= (coerce #(#\" #\\ #\/ #\Backspace #\Page #\Newline #\Return #\Tab) 'string)
+      (read-json-from-string "\"\\\"\\\\\\/\\b\\f\\n\\r\\t\""))
+
+  (is string= "(λ (n) (* n n))"
+      (read-json-from-string "\"(\\u03BB (n) (* n n))\"")))
+
+(define-test json-arrays
+  :depends-on (json-numbers json-string)
+  (is equal '(10 20 30)
+      (read-json-from-string "[10,20,30]"))
+
+  (is equal '(10)
+      (read-json-from-string "[10]"))
+
+  (is equal ()
+      (read-json-from-string "[]"))
+
+  (is equal '(10 "string" (20 30 40))
+      (read-json-from-string "[10, \"string\", [20, 30, 40]]"))
+
+  (is equal '(10 20 30)
+      (read-json-from-string " [ 10 , 20 , 30 ] ")))
+
+(define-test json-objects
+  :depends-on (json-numbers json-string)
+  (is equal '(("key" . "value"))
+      (read-json-from-string "{\"key\":\"value\"}"))
+
+  (is equal '(("one" . 1) ("two" . 2) ("three" . 3))
+      (read-json-from-string "{\"one\":1,\"two\":2,\"three\":3}"))
+
+  (is equal '(("object" . (("key" . "value"))))
+      (read-json-from-string "{\"object\":{\"key\":\"value\"}}"))
+
+  (is equal '(("key" . "value") ("foo" . "bar"))
+      (read-json-from-string " { \"key\" : \"value\" , \"foo\" : \"bar\" }")))
+
+
+
+;; Symbolic Expression Tests
+
+(define-test TODO-symbolic-expressions)
