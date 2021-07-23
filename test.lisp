@@ -258,6 +258,21 @@
           'parser-expected-element
           "parse-many1 fails when the last (errorful) parse consumes input.")))
 
+(define-test parse-take
+  :depends-on (char-parser)
+  (let ((aaa (parse-take 3 (char-parser #\a))))
+    (is equal '(#\a #\a #\a)
+        (parse-string aaa "aaa"))
+
+    (is equal '(#\a #\a #\a)
+        (parse-string aaa "aaaaa"))
+
+    (fail (parse-string aaa "aab")
+          'parser-expected-element)
+
+    (fail (parse-string aaa "aa")
+          'end-of-file)))
+
 (define-test parse-optional
   :depends-on (char-parser)
   (let ((maybe-a (parse-optional (char-parser #\a))))
@@ -349,7 +364,7 @@
       (read-json-from-string "\"(\\u03BB (n) (* n n))\"")))
 
 (define-test json-arrays
-  :depends-on (json-numbers json-string)
+  :depends-on (json-numbers json-strings)
   (is equal '(10 20 30)
       (read-json-from-string "[10,20,30]"))
 
@@ -366,7 +381,7 @@
       (read-json-from-string " [ 10 , 20 , 30 ] ")))
 
 (define-test json-objects
-  :depends-on (json-numbers json-string)
+  :depends-on (json-numbers json-strings)
   (is equal '(("key" . "value"))
       (read-json-from-string "{\"key\":\"value\"}"))
 
