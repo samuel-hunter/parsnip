@@ -1,6 +1,4 @@
 # Parsnip
-[![Build Status](https://travis-ci.com/samuel-hunter/parsnip.svg?branch=master)](https://travis-ci.com/samuel-hunter/parsnip)
-[![Coverage Status](https://coveralls.io/repos/github/samuel-hunter/parsnip/badge.svg?branch=master)](https://coveralls.io/github/samuel-hunter/parsnip?branch=master)
 
 Quickly make combine small parsers together.
 
