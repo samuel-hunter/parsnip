@@ -1,6 +1,5 @@
 # Parsnip
-master: [![builds.sr.ht status](https://builds.sr.ht/~shunter/parsnip/commits/test-develop.yml.svg)](https://builds.sr.ht/~shunter/parsnip/commits/test.yml)
-develop: [![builds.sr.ht status](https://builds.sr.ht/~shunter/parsnip/commits/test-develop.yml.svg)](https://builds.sr.ht/~shunter/parsnip/commits/test-develop.yml)
+[![builds.sr.ht status](https://builds.sr.ht/~shunter/parsnip/commits/test-develop.yml.svg)](https://builds.sr.ht/~shunter/parsnip/commits/test.yml)
 
 Quickly make combine small parsers together.
 

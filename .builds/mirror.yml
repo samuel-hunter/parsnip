@@ -1,7 +1,6 @@
 image: alpine/edge
 environment:
   mirror: git@github.com:samuel-hunter/parsnip.git
-  branch: master
   GIT_SSH_COMMAND: ssh -o StrictHostKeyChecking=no
 secrets:
 -  cba0daaf-67e0-41ee-825b-a467489f5c3d
@@ -10,5 +9,4 @@ sources:
 tasks:
 - updatemirror: |
     cd parsnip
-    git remote add mirror $mirror
-    git push --tags mirror $branch
+    git push --mirror "$mirror"
