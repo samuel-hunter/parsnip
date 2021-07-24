@@ -1,4 +1,4 @@
-;;; json.lisp - Parsnip example JSON format reader
+;;; json.lisp - Parsnip example JSON decoder
 
 ;;; Copyright 2021 Samuel Hunter <samuel (at) shunter (dot) xyz>
 ;;; BSD-3-Clause

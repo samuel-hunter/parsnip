@@ -63,13 +63,11 @@
 
 (defmethod print-object ((object just) stream)
   (print-unreadable-object (object stream :type t)
-    (with-slots (value) object
-      (format stream "~S" value))))
+    (print (just-value object) stream)))
 
 (defmethod print-object ((object failure) stream)
   (print-unreadable-object (object stream :type t)
-    (with-slots (error position) object
-      (format stream "~S POS=~D" error position))))
+    (print (failure-error object) stream)))
 
 (defun just (value)
   (make-instance 'just
