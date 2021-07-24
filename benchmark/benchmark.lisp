@@ -22,7 +22,7 @@
   "Measure the time a decoder reads a jarge json payload many times."
   (with-open-file (stream +large-json-path+)
     (time
-      (dotimes (n 10)
+      (dotimes (n 100)
         (funcall decoder stream)
         (file-position stream 0)))))
 

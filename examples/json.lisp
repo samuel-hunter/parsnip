@@ -24,9 +24,8 @@
 
 ;; whitespace := ( space | tab | newline | return )*
 (defparameter *whitespace*
-  (parse-map (parse-collect (charbag-parser
-                              '(#\Space #\Tab #\Newline #\Return)))
-             (constantly nil)))
+  (parse-do (charbag-parser
+              '(#\Space #\Tab #\Newline #\Return))))
 
 (defun trim-ws (parser)
   (parse-prog2 *whitespace* parser *whitespace*))
@@ -167,12 +166,18 @@
              (predicate-parser (lambda (c) (not (char= c #\"))))))
 
 ;; string := quotation char+ quotation
+
 (defparameter *string*
-  (parse-let ((chars (parse-prog2
-                       (char-parser #\")
-                       (parse-collect *char*)
-                       (char-parser #\"))))
-    (coerce chars 'string)))
+  (parse-prog2
+    (char-parser #\")
+    (parse-defer
+      (parse-reduce (lambda (string c)
+                      (vector-push-extend c string)
+                      string)
+                    *char* (make-array 0 :element-type 'character
+                                       :adjustable t
+                                       :fill-pointer 0)))
+    (char-parser #\")))
 
 ;; RFC 8259 § 3. Values
 
