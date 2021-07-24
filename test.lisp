@@ -219,13 +219,13 @@
           "parse-any fails after more than one character is read.")))
 
 (define-test parse-many
-  :depends-on (char-parser)
-  (let ((parser (parse-many (char-parser #\a))))
+  :depends-on (predicate-parser string-parser)
+  (let ((parser (parse-many (predicate-parser #'alpha-char-p))))
     (is equal '(#\a)
         (parse-string parser "a"))
 
-    (is equal '(#\a #\a #\a)
-        (parse-string parser "aaa"))
+    (is equal '(#\a #\b #\c)
+        (parse-string parser "abc"))
 
     (is equal ()
         (parse-string parser "")))
@@ -239,13 +239,13 @@
           "parse-many fails when the last (errorful) parse consumes input.")))
 
 (define-test parse-many1
-  :depends-on (char-parser)
-  (let ((parser (parse-many1 (char-parser #\a))))
+  :depends-on (predicate-parser string-parser)
+  (let ((parser (parse-many1 (predicate-parser #'alpha-char-p))))
     (is equal '(#\a)
         (parse-string parser "a"))
 
-    (is equal '(#\a #\a #\a)
-        (parse-string parser "aaa"))
+    (is equal '(#\a #\b #\c)
+        (parse-string parser "abc"))
 
     (fail (parse-string parser "")
           'end-of-file))
@@ -259,18 +259,18 @@
           "parse-many1 fails when the last (errorful) parse consumes input.")))
 
 (define-test parse-take
-  :depends-on (char-parser)
-  (let ((aaa (parse-take 3 (char-parser #\a))))
+  :depends-on (predicate-parser)
+  (let ((letters (parse-take 3 (predicate-parser #'alpha-char-p))))
     (is equal '(#\a #\a #\a)
-        (parse-string aaa "aaa"))
+        (parse-string letters "aaa"))
 
-    (is equal '(#\a #\a #\a)
-        (parse-string aaa "aaaaa"))
+    (is equal '(#\a #\b #\c)
+        (parse-string letters "abc123"))
 
-    (fail (parse-string aaa "aab")
+    (fail (parse-string letters "ab!")
           'parser-expected-element)
 
-    (fail (parse-string aaa "aa")
+    (fail (parse-string letters "ab")
           'end-of-file)))
 
 (define-test parse-optional
