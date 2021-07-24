@@ -23,7 +23,6 @@ I don't trust third-party libraries without self-confidence, so I've made my own
 - [ ] Documentation
   - [ ] Code examples with real formats
     - [X] JSON
-    - [ ] Symbolic expressions
     - [ ] Minimal C-family grammar?
   - [ ] Docstrings in functions
   - [ ] Quickstart within the README

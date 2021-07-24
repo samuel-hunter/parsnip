@@ -6,8 +6,7 @@
 (defpackage #:xyz.shunter.parsnip.test
   (:use #:cl #:parachute
         #:xyz.shunter.parsnip
-        #:xyz.shunter.parsnip.examples.json
-        #:xyz.shunter.parsnip.examples.s-expr))
+        #:xyz.shunter.parsnip.examples.json))
 
 (in-package #:xyz.shunter.parsnip.test)
 
@@ -394,36 +393,3 @@
 
   (is equal '(("key" . "value") ("foo" . "bar"))
       (read-json-from-string " { \"key\" : \"value\" , \"foo\" : \"bar\" }")))
-
-
-
-;; Symbolic Expression Tests
-
-(define-test s-expr-symbols
-  (is string= "HELLO"
-      (read-s-expr-from-string "Hello"))
-
-  (is string= "Hello"
-      (read-s-expr-from-string "|Hello|")))
-
-(define-test s-expr-numbers
-  (is = 123
-      (read-s-expr-from-string "123"))
-
-  (is = 456
-      (read-s-expr-from-string "000456"))
-
-  (is = -789
-      (read-s-expr-from-string "-789")))
-
-(define-test s-expr-lists
-  :depends-on (s-expr-symbols)
-
-  (is equal '(10 20 30)
-      (read-s-expr-from-string "(10 20 30)"))
-
-  (is equal ()
-      (read-s-expr-from-string "()"))
-
-  (is equal '(10 (20 30 40) 50)
-      (read-s-expr-from-string "(10 (20 30 40) 50)")))

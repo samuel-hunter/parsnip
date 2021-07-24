@@ -20,8 +20,7 @@
   :version "0.0.2"
   :depends-on (#:parsnip)
   :components ((:module :examples
-                :components ((:file "json")
-                             (:file "s-expr"))))
+                :components ((:file "json"))))
   :in-order-to ((asdf:test-op (asdf:test-op :parsnip/test))))
 
 (asdf:defsystem #:parsnip/test
