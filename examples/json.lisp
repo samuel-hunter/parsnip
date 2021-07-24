@@ -18,15 +18,15 @@
 
 (defun charbag-parser (charbag)
   (predicate-parser (lambda (c)
-                    (position c charbag))))
+                      (position c charbag))))
 
 ;;; RFC 8259 § 2. JSON Grammar
 
 ;; whitespace := ( space | tab | newline | return )*
 (defparameter *whitespace*
-  (parse-map (parse-many (charbag-parser
-                                  '(#\Space #\Tab #\Newline #\Return)))
-              (constantly nil)))
+  (parse-map (parse-collect (charbag-parser
+                              '(#\Space #\Tab #\Newline #\Return)))
+             (constantly nil)))
 
 (defun trim-ws (parser)
   (parse-prog2 *whitespace* parser *whitespace*))
@@ -60,8 +60,8 @@
 ;; member := string name-separator value
 (defparameter *member*
   (parse-let ((name *string*)
-               (value (parse-progn *name-separator*
-                                    *value*)))
+              (value (parse-progn *name-separator*
+                                  *value*)))
     (cons name value)))
 
 ;; object := begin-object [ member ( value-separator member ) + ] end-object
@@ -70,9 +70,9 @@
     *begin-object*
     (parse-optional (parse-let ((first-member *member*)
                                 (other-members
-                                  (parse-many (parse-progn
-                                                *value-separator*
-                                                *member*))))
+                                  (parse-collect (parse-progn
+                                                   *value-separator*
+                                                   *member*))))
                       (cons first-member other-members))
                     nil)
     *end-object*))
@@ -84,12 +84,12 @@
   (parse-prog2
     *begin-array*
     (parse-optional (parse-let ((first-value *value*)
-                            (other-values
-                              (parse-many (parse-progn
-                                              *value-separator*
-                                              *value*))))
-                 (cons first-value other-values))
-               nil)
+                                (other-values
+                                  (parse-collect (parse-progn
+                                                   *value-separator*
+                                                   *value*))))
+                      (cons first-value other-values))
+                    nil)
     *end-array*))
 
 ;; RFC 8259 § 6. Numbers
@@ -100,24 +100,24 @@
 
 ;; int := digit+
 (defparameter *int*
-  (parse-map (parse-many1 *digit*)
-              (lambda (digits) (parse-integer (coerce digits 'string)))))
+  (parse-map (parse-collect1 *digit*)
+             (lambda (digits) (parse-integer (coerce digits 'string)))))
 
 ;; frac := '.' int
 (defparameter *frac*
   (parse-progn (char-parser #\.)
-                (parse-let ((digits (parse-many1 *digit*)))
-                  (/ (parse-integer (coerce digits 'string))
-                     (expt 10 (length digits))))))
+               (parse-let ((digits (parse-collect1 *digit*)))
+                 (/ (parse-integer (coerce digits 'string))
+                    (expt 10 (length digits))))))
 
 ;; exp := 'e' ['+' | '-'] int
 (defparameter *exp*
   (parse-progn (char-parser #\e)
-                (parse-let ((sign (parse-optional (charbag-parser "+-") #\+))
-                             (number *int*))
-                  (* (if (char= sign #\+)
-                         1 -1)
-                     number))))
+               (parse-let ((sign (parse-optional (charbag-parser "+-") #\+))
+                           (number *int*))
+                 (* (if (char= sign #\+)
+                        1 -1)
+                    number))))
 
 ;; number := [minus] int [frac] [exp]
 (defparameter *number*
@@ -164,14 +164,14 @@
                           (parse-any
                             *char-code*
                             *unicode-char*))
-              (predicate-parser (lambda (c) (not (char= c #\"))))))
+             (predicate-parser (lambda (c) (not (char= c #\"))))))
 
 ;; string := quotation char+ quotation
 (defparameter *string*
   (parse-let ((chars (parse-prog2
-                        (char-parser #\")
-                        (parse-many *char*)
-                        (char-parser #\"))))
+                       (char-parser #\")
+                       (parse-collect *char*)
+                       (char-parser #\"))))
     (coerce chars 'string)))
 
 ;; RFC 8259 § 3. Values
@@ -181,8 +181,8 @@
   ;; at a single char before reading the rest of the name. Possible since every
   ;; literal has a unique character (f, n, t).
   (parse-map (parse-progn (char-parser start)
-                            (string-parser remaining-name))
-              (constantly value)))
+                          (string-parser remaining-name))
+             (constantly value)))
 
 ;; value := 'false' | 'null' | 'true' | object | array | number | string
 (defparameter *value*

@@ -87,7 +87,7 @@
           'parser-expected-element))
 
   (let ((ab (parse-progn (char-parser #\a)
-                          (char-parser #\b))))
+                         (char-parser #\b))))
     (is char= #\b
         (parse-string ab "ab"))
 
@@ -98,8 +98,8 @@
           'parser-expected-element))
 
   (let ((abc (parse-progn (char-parser #\a)
-                           (char-parser #\b)
-                           (char-parser #\c))))
+                          (char-parser #\b)
+                          (char-parser #\c))))
     (is char= #\c
         (parse-string abc "abc"))
 
@@ -126,7 +126,7 @@
           'parser-expected-element))
 
   (let ((ab (parse-prog1 (char-parser #\a)
-                          (char-parser #\b))))
+                         (char-parser #\b))))
     (is char= #\a
         (parse-string ab "ab"))
 
@@ -137,8 +137,8 @@
           'parser-expected-element))
 
   (let ((abc (parse-prog1 (char-parser #\a)
-                           (char-parser #\b)
-                           (char-parser #\c))))
+                          (char-parser #\b)
+                          (char-parser #\c))))
     (is char= #\a
         (parse-string abc "abc"))
 
@@ -157,7 +157,7 @@
 (define-test parse-prog2
   :depends-on (char-parser)
   (let ((ab (parse-prog2 (char-parser #\a)
-                          (char-parser #\b))))
+                         (char-parser #\b))))
     (is char= #\b
         (parse-string ab "ab"))
 
@@ -168,8 +168,8 @@
           'parser-expected-element))
 
   (let ((abc (parse-prog2 (char-parser #\a)
-                           (char-parser #\b)
-                           (char-parser #\c))))
+                          (char-parser #\b)
+                          (char-parser #\c))))
     (is char= #\b
         (parse-string abc "abc"))
 
@@ -195,8 +195,8 @@
           'parser-expected-element))
 
   (let ((abc (parse-any (char-parser #\a)
-                         (char-parser #\b)
-                         (char-parser #\c))))
+                        (char-parser #\b)
+                        (char-parser #\c))))
     (is char= #\a
         (parse-string abc "a"))
 
@@ -210,7 +210,7 @@
           'parser-expected-element))
 
   (let ((foobar (parse-any (string-parser "foo")
-                            (string-parser "bar"))))
+                           (string-parser "bar"))))
     (is string= "foo"
         (parse-string foobar "foo"))
 
@@ -218,9 +218,9 @@
           'parser-expected-element
           "parse-any fails after more than one character is read.")))
 
-(define-test parse-many
+(define-test parse-collect
   :depends-on (predicate-parser string-parser)
-  (let ((parser (parse-many (predicate-parser #'alpha-char-p))))
+  (let ((parser (parse-collect (predicate-parser #'alpha-char-p))))
     (is equal '(#\a)
         (parse-string parser "a"))
 
@@ -230,17 +230,17 @@
     (is equal ()
         (parse-string parser "")))
 
-  (let ((foos (parse-many (string-parser "foo"))))
+  (let ((foos (parse-collect (string-parser "foo"))))
     (is equal '("foo" "foo" "foo")
         (parse-string foos "foofoofoo"))
 
     (fail (parse-string foos "foofoobar")
           'parser-expected-element
-          "parse-many fails when the last (errorful) parse consumes input.")))
+          "parse-collect fails when the last (errorful) parse consumes input.")))
 
-(define-test parse-many1
+(define-test parse-collect1
   :depends-on (predicate-parser string-parser)
-  (let ((parser (parse-many1 (predicate-parser #'alpha-char-p))))
+  (let ((parser (parse-collect1 (predicate-parser #'alpha-char-p))))
     (is equal '(#\a)
         (parse-string parser "a"))
 
@@ -250,13 +250,13 @@
     (fail (parse-string parser "")
           'end-of-file))
 
-  (let ((foos (parse-many (string-parser "foo"))))
+  (let ((foos (parse-collect (string-parser "foo"))))
     (is equal '("foo" "foo" "foo")
         (parse-string foos "foofoofoo"))
 
     (fail (parse-string foos "foofoobar")
           'parser-expected-element
-          "parse-many1 fails when the last (errorful) parse consumes input.")))
+          "parse-collect1 fails when the last (errorful) parse consumes input.")))
 
 (define-test parse-take
   :depends-on (predicate-parser)
@@ -301,13 +301,13 @@
         (parse-string foo "foo"))
 
     (fail (parse-string foo "bar")
-           'parser-expected-element
-           "parse-optional does not resume from input-consuming errors")))
+          'parser-expected-element
+          "parse-optional does not resume from input-consuming errors")))
 
 (define-test parse-let
   :depends-on (predicate-parser)
   (let ((parser (parse-let ((digit (predicate-parser #'digit-char-p))
-                             (alpha (predicate-parser #'alpha-char-p)))
+                            (alpha (predicate-parser #'alpha-char-p)))
                   (cons digit alpha))))
     (is equal (cons #\1 #\a)
         (parse-string parser "1a"))
