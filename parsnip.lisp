@@ -12,9 +12,9 @@
                 #:curry
                 #:rcurry
                 #:compose)
-  (:export #:parse
-           #:parser-expected-element
+  (:export #:parser-expected-element
            #:parser-element-name
+           #:parse
 
            #:char-parser
            #:predicate-parser
@@ -27,10 +27,11 @@
            #:parse-prog2
 
            #:parse-any
-           #:parse-many
-           #:parse-many1
-           #:parse-take
            #:parse-optional
+
+           #:parse-collect
+           #:parse-collect1
+           #:parse-take
 
            #:parse-try
            #:parse-name
@@ -214,23 +215,7 @@
    parser's value. Consumes input on failure when the first parser succeeds."
   (parse-progn first-parser (apply 'parse-prog1 second-parser parsers)))
 
-(defun parse-any (&rest parsers)
-  "Compose multiple parsers to try each one in sequence until one either
-   succeeds, or has consumed input. Consumes input on failure when any child
-   parser has the same error.
-
-  Fails with a list of expected values if all parsers are exhausted.
-  Fails when a failing parser consumes input."
-  (reduce (lambda (head-parser tail-parser)
-            (lambda (stream)
-              (with-failure (funcall head-parser stream) ()
-                (funcall tail-parser stream))))
-          parsers
-          :from-end t
-          :initial-value (lambda (stream)
-                           (expected parsers stream nil))))
-
-(defun parse-many (parser)
+(defun parse-collect (parser)
   (declare (optimize debug))
   "Enhance the parser to run indefinitively until error, and collect the
    results. Consumes input on error when the last (errorful) parse consumes
@@ -246,17 +231,17 @@
                (() (just ())))))
     #'parse-iter))
 
-(defun parse-many1 (parser)
+(defun parse-collect1 (parser)
   "Enhance the parser to run indefinitively at least once until error, and
    collect the results. Consumes input on error when the last (errorful) parse
    consumes input.
 
    Fails when it could not succeed once.
    Fails when the containing parser consumes input during failure."
-  (let ((many-parser (parse-many parser)))
+  (let ((collect-parser (parse-collect parser)))
     (lambda (stream)
       (with-just (funcall parser stream) (head)
-        (with-just (funcall many-parser stream) (tail)
+        (with-just (funcall collect-parser stream) (tail)
           (just (cons head tail)))))))
 
 (defun parse-take (times parser)
@@ -273,6 +258,22 @@
     (lambda (stream)
       (with-just (take-iter times stream) (list)
         (just list)))))
+
+(defun parse-any (&rest parsers)
+  "Compose multiple parsers to try each one in sequence until one either
+   succeeds, or has consumed input. Consumes input on failure when any child
+   parser has the same error.
+
+   Fails with a list of expected values if all parsers are exhausted.
+   Fails when a failing parser consumes input."
+  (reduce (lambda (head-parser tail-parser)
+            (lambda (stream)
+              (with-failure (funcall head-parser stream) ()
+                (funcall tail-parser stream))))
+          parsers
+          :from-end t
+          :initial-value (lambda (stream)
+                           (expected parsers stream nil))))
 
 (defun parse-optional (parser &optional default)
   "Enhance the parser to resume from an error with a default value if it did
