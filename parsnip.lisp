@@ -13,6 +13,7 @@
                 #:compose)
   (:export #:parse
            #:parser-expected-element
+           #:parser-element-name
 
            #:char-parser
            #:predicate-parser
@@ -41,20 +42,18 @@
 
 
 
-(define-condition parser-expected-element ()
-  ((name :initarg :name)
-   (stream :initarg :stream))
+(define-condition parser-expected-element (stream-error)
+  ((name :initarg :name :reader parser-element-name))
   (:report (lambda (condition stream)
-             (with-slots (name position) condition
-               (format stream "Expected element ~S (position ~D)"
-                       name position)))))
+             (format stream "Expected element ~S on ~S"
+                     (parser-element-name condition)
+                     (stream-error-stream condition)))))
 
 (defclass result ()
   ())
 
 (defclass just (result)
-  ((value :initarg :value :reader just-value)
-   (position :initarg :position :reader just-position)))
+  ((value :initarg :value :reader just-value)))
 
 (defclass failure (result)
   ((error :initarg :error :reader failure-error)
@@ -71,10 +70,9 @@
     (with-slots (error position) object
       (format stream "~S POS=~D" error position))))
 
-(defun just (value position)
+(defun just (value)
   (make-instance 'just
-                 :value value
-                 :position position))
+                 :value value))
 
 (defun failure (consumed-chars condition-class &rest initargs)
   (make-instance 'failure
@@ -98,6 +96,45 @@
 
 
 
+;; Parsers
+
+(defun char-parser (char)
+  "Return a parser that accepts the given character value. Does not consume
+   input on failure."
+  (lambda (stream)
+    (let ((actual-char (peek-char nil stream nil)))
+      (cond
+        ((null actual-char) (eof stream nil))
+        ((char= char actual-char)
+         (just (read-char stream)))
+        (t (expected char stream nil))))))
+
+(defun predicate-parser (predicate)
+  "Return a parser that accepts a character if the given predicate returns
+   true. Does not consume input on failure."
+  (lambda (stream)
+    (let ((actual-char (peek-char nil stream nil)))
+      (cond
+        ((null actual-char) (eof stream nil))
+        ((funcall predicate actual-char)
+         (just (read-char stream)))
+        (t (expected predicate stream nil))))))
+
+(defun string-parser (string)
+  "Return a parser that accepts the given string value. May consume input on
+   failure."
+  (lambda (stream)
+    (let* ((actual-string (make-string (length string)))
+           (chars-read (read-sequence actual-string stream)))
+      (cond
+        ((< chars-read (length string))
+         (eof stream (plusp chars-read)))
+        ((string= actual-string string)
+         (just actual-string))
+        (t (expected string stream t))))))
+
+
+
 ;; Higher-order parsing functions
 
 (defun just-flatmap (result function)
@@ -110,8 +147,7 @@
   "Map a return value to a different one."
   (just-flatmap result
                 (lambda (value)
-                  (just (funcall function value)
-                        (just-position result)))))
+                  (just (funcall function value)))))
 
 (defun failure-resume (result function)
   "Map a failure to a different result if it did not consume chars."
@@ -129,45 +165,6 @@
                'failure
                :error (funcall function (failure-error result))
                :consumed-chars (failure-consumed-chars result)))))
-
-
-
-;; Parsers
-
-(defun char-parser (char)
-  "Return a parser that accepts the given character value. Does not consume
-   input on failure."
-  (lambda (stream)
-    (let ((actual-char (peek-char nil stream nil)))
-      (cond
-        ((null actual-char) (eof stream nil))
-        ((char= char actual-char)
-         (just (read-char stream) (ignore-errors (file-position stream))))
-        (t (expected char stream nil))))))
-
-(defun predicate-parser (predicate)
-  "Return a parser that accepts a character if the given predicate returns
-   true. Does not consume input on failure."
-  (lambda (stream)
-    (let ((actual-char (peek-char nil stream nil)))
-      (cond
-        ((null actual-char) (eof stream nil))
-        ((funcall predicate actual-char)
-         (just (read-char stream) (ignore-errors (file-position stream))))
-        (t (expected predicate stream nil))))))
-
-(defun string-parser (string)
-  "Return a parser that accepts the given string value. May consume input on
-   failure."
-  (lambda (stream)
-    (let* ((actual-string (make-string (length string)))
-           (chars-read (read-sequence actual-string stream)))
-      (cond
-        ((< chars-read (length string))
-         (eof stream (plusp chars-read)))
-        ((string= actual-string string)
-         (just actual-string (ignore-errors (file-position stream))))
-        (t (expected string stream t))))))
 
 
 
@@ -239,13 +236,12 @@
    Fails when the containing parser consumes input on failure."
   (lambda (stream)
     (loop
-      :with position := (ignore-errors (file-position stream))
       :for result := (funcall parser stream)
       :while (typep result 'just)
       :collect (just-value result) :into values
       :finally (return (if (failure-consumed-chars result)
                            result
-                           (just values position))))))
+                           (just values))))))
 
 (defun parse-many1 (parser)
   "Enhance the parser to run indefinitively at least once until error, and
@@ -279,7 +275,7 @@
     (failure-resume (funcall parser stream)
                     (lambda (err)
                       (declare (ignore err))
-                      (just default (ignore-errors (file-position stream)))))))
+                      (just default)))))
 
 (defun parse-try (parser)
   "Enhance the parser to try to rewind the stream on failure, reversing any
@@ -318,7 +314,7 @@
     (with-gensyms (stream)
       `(lambda (,stream)
          ,(reduce (curry #'just-bind stream) bindings
-                  :initial-value `(just (progn ,@body) ,stream)
+                  :initial-value `(just (progn ,@body))
                   :from-end t)))))
 
 (defmacro parse-defer (form &key (thread-safe t))
