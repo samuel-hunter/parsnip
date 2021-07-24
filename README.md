@@ -1,4 +1,6 @@
 # Parsnip
+master: [![builds.sr.ht status](https://builds.sr.ht/~shunter/parsnip/commits/test-develop.yml.svg)](https://builds.sr.ht/~shunter/parsnip/commits/test.yml)
+develop: [![builds.sr.ht status](https://builds.sr.ht/~shunter/parsnip/commits/test-develop.yml.svg)](https://builds.sr.ht/~shunter/parsnip/commits/test-develop.yml)
 
 Quickly make combine small parsers together.
 
@@ -7,8 +9,8 @@ I don't trust third-party libraries without self-confidence, so I've made my own
 
 ## Road to Production-Readiness
 
-The main bottleneck is figuring out an 80% stable API and calling it good.
-Most everything else (quickstart documentation, benchmarking) can follow, but per-function docs and unit tests can be done on the side.
+The main bottleneck to production-readiness is figuring out an 80% stable API and calling it good.
+Most everything else (quickstart documentation, benchmarking) can follow, but per-function docs and unit tests can be done as the API develops.
 
 - [ ] The external API is stable, including primitive parsers and parser combinators
   - [x] All parsers are limited to a non-seeking stream with a 1-character peek buffer (outside `parse-try`)

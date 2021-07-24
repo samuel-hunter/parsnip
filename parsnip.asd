@@ -8,6 +8,11 @@
   :author "Samuel Hunter"
   :license  "BSD 3-Clause"
   :version "0.0.2"
+
+  :homepage "https://sr.ht/~shunter/parsnip/"
+  :source-control (:git "https://git.sr.ht/~shunter/parsnip")
+  :bug-tracker "https://todo.sr.ht/~shunter/parsnip"
+
   :depends-on (#:alexandria
                #:trivial-lazy)
   :components ((:file "parsnip"))
@@ -18,6 +23,7 @@
   :author "Samuel Hunter"
   :license "BSD 3-Clause"
   :version "0.0.2"
+
   :depends-on (#:parsnip
                #:alexandria)
   :components ((:module :examples
@@ -29,6 +35,7 @@
   :author "Samuel Hunter"
   :license "BSD 3-Clause"
   :version "0.0.2"
+
   :depends-on (#:parsnip
                #:parsnip/examples
                #:parachute)
