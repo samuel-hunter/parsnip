@@ -4,7 +4,7 @@
 ;;; BSD-3-Clause
 
 (asdf:defsystem #:parsnip
-  :description "Quick and unopinionated parser combinators"
+  :description "Quickly combine small parsers together"
   :author "Samuel Hunter"
   :license  "BSD 3-Clause"
   :version "0.0.2"
@@ -14,17 +14,18 @@
   :in-order-to ((asdf:test-op (asdf:test-op :parsnip/test))))
 
 (asdf:defsystem #:parsnip/examples
-  :description "Parsnip examples"
+  :description "Parsnip library examples"
   :author "Samuel Hunter"
   :license "BSD 3-Clause"
   :version "0.0.2"
-  :depends-on (#:parsnip)
+  :depends-on (#:parsnip
+               #:alexandria)
   :components ((:module :examples
                 :components ((:file "json"))))
   :in-order-to ((asdf:test-op (asdf:test-op :parsnip/test))))
 
 (asdf:defsystem #:parsnip/test
-  :description "Parsnip test suite"
+  :description "Parsnip library test suite"
   :author "Samuel Hunter"
   :license "BSD 3-Clause"
   :version "0.0.2"
