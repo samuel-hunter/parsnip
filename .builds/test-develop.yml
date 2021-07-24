@@ -1,0 +1,39 @@
+image: debian/stable
+environment:
+  ROSWELL_RELEASE: 21.06.14.110
+  ROSWELL_HOME: /home/build/.roswell
+  ROSWELL_BRANCH: release
+  LISP: sbcl-bin
+packages:
+- wget
+- rsync
+secrets:
+- 1ee8ca54-5b4d-4d53-97cd-52fbb9606387
+sources:
+- https://git.sr.ht/~shunter/parsnip#develop
+tasks:
+- install-roswell: |
+    wget --no-verbose -O- https://github.com/roswell/roswell/releases/download/v$ROSWELL_RELEASE/roswell-$ROSWELL_RELEASE-linux-x86_64.tar.bz2 | tar -jx
+    PATH=~/roswell:$PATH
+
+    # Register parsnip with ASDF
+    ASDF_REG_CONF_DIR=~/.config/common-lisp/source-registry.conf.d
+    mkdir -p $ASDF_REG_CONF_DIR
+    echo "(:tree \"$HOME/parsnip\")" > $ASDF_REG_CONF_DIR/ci.conf
+
+    # Use lisp impl and print configuration
+    ros install $LISP
+    ros use $LISP
+    ros config
+- build: |
+    PATH=~/roswell:$PATH
+    # Fetch deps and compile lisps
+    ros --eval '(ql:quickload :parsnip/test)'
+- test: |
+    PATH=~/roswell:$PATH
+    ros --system parachute --system parsnip/test \
+      --eval '(setf *debugger-hook* (lambda (e h) (print e) (uiop:quit 1))) (parachute:test-toplevel :xyz.shunter.parsnip.test)'
+triggers:
+- action: email
+  condition: failure
+  to: builds@shunter.xyz
