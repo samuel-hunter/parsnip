@@ -1,5 +1,5 @@
 # Parsnip
-[![builds.sr.ht status](https://builds.sr.ht/~shunter/parsnip/commits/test-develop.yml.svg)](https://builds.sr.ht/~shunter/parsnip/commits/test.yml)
+[![builds.sr.ht status](https://builds.sr.ht/~shunter/parsnip/commits/test.yml.svg)](https://builds.sr.ht/~shunter/parsnip/commits/test.yml)
 
 Quickly make combine small parsers together.
 
@@ -23,7 +23,7 @@ Most everything else (quickstart documentation, benchmarking) can follow, but pe
   - [ ] 95% code coverage in `parsnip.lisp` (Tried using Coveralls, didn't work out very well. Maybe use [sb-cover](http://www.sbcl.org/manual/#sb_002dcover)?)
   - [ ] Benchmarks should have a reasonable speed.
         I don't plan for this library to be the fastest, but it shouldn't be snailing either.
-	The current speed of the JSON example is about 7x slower than cl-json; I don't think this is acceptable.
+	The current speed of the JSON example is about 6x slower than cl-json; I don't think this is acceptable.
 	I think an obtainable goal is being twice as slow.
 - [ ] Documentation
   - [ ] Code examples with real formats

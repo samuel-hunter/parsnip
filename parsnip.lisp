@@ -31,6 +31,8 @@
 
            #:parse-collect
            #:parse-collect1
+           #:parse-reduce
+           #:parse-do
            #:parse-take
 
            #:parse-try
@@ -77,6 +79,12 @@
   (make-instance 'failure
                  :error error
                  :consumed-chars consumed-chars))
+
+(defun justp (result)
+  (typep result 'just))
+
+(defun failurep (result)
+  (typep result 'failure))
 
 (defun expected (name stream consumed-chars)
   (failure consumed-chars
@@ -136,7 +144,7 @@
 
 
 
-;; Helper macros
+;; Internal helper macros
 
 (defmacro with-just (form (&optional value) &body body)
   (once-only (form)
@@ -187,7 +195,6 @@
 (defun parse-progn (&rest parsers)
   "Compose multiple parsers to run them in sequence, returning the last
    parser's value. Consumes input on failure when the first parser succeeds."
-  (declare (optimize debug))
   (reduce (lambda (head-parser tail-parser)
             (lambda (stream)
               (with-just (funcall head-parser stream) ()
@@ -214,25 +221,21 @@
   (parse-progn first-parser (apply 'parse-prog1 second-parser parsers)))
 
 (defun parse-collect (parser)
-  (declare (optimize debug))
-  "Enhance the parser to run indefinitively until error, and collect the
-   results. Consumes input on error when the last (errorful) parse consumes
-   input.
+  "Enhance the parser to keep running until failure, and collect the results.
+   Consumes input on error when the last (errorful) parse consumes input.
 
    Fails when the containing parser consumes input on failure."
-  (labels ((parse-iter (stream)
-             (with-result
-               (funcall parser stream)
-               ((head)
-                (with-just (parse-iter stream) (tail)
-                  (just (cons head tail))))
-               (() (just ())))))
-    #'parse-iter))
+  (lambda (stream)
+    (do ((list () (cons (just-value result) list))
+         (result (funcall parser stream) (funcall parser stream)))
+        ((failurep result)
+         (with-failure result ()
+           (just (nreverse list)))))))
 
 (defun parse-collect1 (parser)
-  "Enhance the parser to run indefinitively at least once until error, and
-   collect the results. Consumes input on error when the last (errorful) parse
-   consumes input.
+  "Enhance the parser to keep running until failure, and collect the results.
+   Consumes input on error when the last (errorful) parse consumes input or if
+   the first run failed.
 
    Fails when it could not succeed once.
    Fails when the containing parser consumes input during failure."
@@ -241,6 +244,24 @@
       (with-just (funcall parser stream) (head)
         (with-just (funcall collect-parser stream) (tail)
           (just (cons head tail)))))))
+
+(defun parse-reduce (function parser initial-value)
+  "Enhance the parser to keep running until failure, and reduce the results
+   into a single value."
+  (lambda (stream)
+    (do ((value initial-value (funcall function value (just-value result)))
+         (result (funcall parser stream) (funcall parser stream)))
+        ((failurep result)
+         (with-failure result ()
+           (just value))))))
+
+(defun parse-do (parser &optional value)
+  "Enhance the parser to keep running until it reaches failure. Returns the
+   faliure only if the containing parser consums input during failure."
+  (lambda (stream)
+    (do ((result (funcall parser stream) (funcall parser stream)))
+        ((failurep result)
+         (with-failure result () (just value))))))
 
 (defun parse-take (times parser)
   "Enhance the parser to run a given number of times and collect the results.
@@ -286,12 +307,14 @@
   (lambda (stream)
     (let ((old-position (file-position stream))
           (result (funcall parser stream)))
-      (with-failure result (err)
-        (when (failure-consumed-chars result)
-          (file-position stream old-position))
-        (make-instance 'failure
-                       :error err
-                       :consumed-chars nil)))))
+      (if (and (failurep result)
+               (failure-consumed-chars result))
+          (progn
+            (file-position stream old-position)
+            (make-instance 'failure
+                           :error (failure-error result)
+                           :consumed-chars nil))
+          result))))
 
 (defun parse-name (name parser)
   "Maps parser-expected-element errors to provide the given name of the
@@ -321,10 +344,8 @@
                   :initial-value `(just (progn ,@body))
                   :from-end t)))))
 
-(defmacro parse-defer (form &key (thread-safe t))
+(defmacro parse-defer (form)
   "Defer evaluating the parser-returning FORM until the parser is called.
    Useful for circular-referencing parsers."
-  (with-gensyms (stream parser)
-    `(let ((,parser (trivial-lazy:delay ,form :thread-safe ,thread-safe)))
-       (lambda (,stream)
-         (funcall (trivial-lazy:force ,parser) ,stream)))))
+  (with-gensyms (stream)
+    `(lambda (,stream) (funcall ,form ,stream))))

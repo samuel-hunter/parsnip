@@ -76,6 +76,16 @@
     (fail (parse-string parser "")
           'end-of-file)))
 
+(define-test parse-map
+  :depends-on (char-parser)
+  (let ((parser (parse-map (char-parser #\a)
+                           #'char-code)))
+    (is = #.(char-code #\a)
+        (parse-string parser "a"))
+
+    (fail (parse-string parser "b")
+          'parser-expected-element)))
+
 (define-test parse-progn
   :depends-on (char-parser)
   (let ((a (parse-progn (char-parser #\a))))
@@ -216,7 +226,35 @@
 
     (fail (parse-string foobar "bar")
           'parser-expected-element
-          "parse-any fails after more than one character is read.")))
+          "parse-any fails when any input is consumed.")))
+
+(define-test parse-optional
+  :depends-on (char-parser string-parser)
+  (let ((a (parse-optional (char-parser #\a))))
+    (is char= #\a
+        (parse-string a "a"))
+
+    (is eq nil
+        (parse-string a "z"))
+
+    (is eq nil
+        (parse-string a "")))
+
+  (let ((a-or-b (parse-optional (char-parser #\a)
+                                #\b)))
+    (is char= #\b
+        (parse-string a-or-b "z"))
+
+    (is char= #\b
+        (parse-string a-or-b "")))
+
+  (let ((foo (parse-optional (string-parser "foo"))))
+    (is string= "foo"
+        (parse-string foo "foo"))
+
+    (fail (parse-string foo "bar")
+          'parser-expected-element
+          "parse-optional fails when any input is consumed.")))
 
 (define-test parse-collect
   :depends-on (predicate-parser string-parser)
@@ -258,6 +296,40 @@
           'parser-expected-element
           "parse-collect1 fails when the last (errorful) parse consumes input.")))
 
+(define-test parse-reduce
+  :depends-on (predicate-parser)
+  (let ((number-parser (parse-reduce
+                         (lambda (num digit)
+                           (+ (* 10 num)
+                              (- (char-code digit) #.(char-code #\0))))
+                         (predicate-parser #'digit-char-p) 0)))
+    (is = 123
+        (parse-string number-parser "123"))
+
+    (is = 0
+        (parse-string number-parser ""))))
+
+(define-test parse-do
+  :depends-on (char-parser parse-progn)
+  (let* ((spaces (parse-do (char-parser #\Space)))
+         (letter (parse-progn spaces
+                              (char-parser #\a))))
+    (is eq nil
+        (parse-string spaces "   "))
+
+    (is eq nil
+        (parse-string spaces "   1"))
+
+    (is eq nil
+        (parse-string spaces ""))
+
+    (is eq :foo
+        (parse-string (parse-do (char-parser #\Space) :foo)
+                      "   "))
+
+    (is eq #\a
+        (parse-string letter "   a"))))
+
 (define-test parse-take
   :depends-on (predicate-parser)
   (let ((letters (parse-take 3 (predicate-parser #'alpha-char-p))))
@@ -273,36 +345,19 @@
     (fail (parse-string letters "ab")
           'end-of-file)))
 
-(define-test parse-optional
-  :depends-on (char-parser)
-  (let ((maybe-a (parse-optional (char-parser #\a))))
-    (is char= #\a
-        (parse-string maybe-a "a"))
-
-    (is eq nil
-        (parse-string maybe-a "z"))
-
-    (is eq nil
-        (parse-string maybe-a "")))
-
-  (let ((a-else-b (parse-optional (char-parser #\a)
-                                  #\b)))
-    (is char= #\a
-        (parse-string a-else-b "a"))
-
-    (is char= #\b
-        (parse-string a-else-b "b"))
-
-    (is char= #\b
-        (parse-string a-else-b "")))
-
-  (let ((foo (parse-optional (string-parser "foo"))))
+(define-test parse-try
+  :depends-on (string-parser parse-any)
+  (let* ((try-foo (parse-try (string-parser "foo")))
+         (foo-or-bar (parse-any try-foo
+                                (string-parser "bar"))))
     (is string= "foo"
-        (parse-string foo "foo"))
+        (parse-string try-foo "foo"))
 
-    (fail (parse-string foo "bar")
-          'parser-expected-element
-          "parse-optional does not resume from input-consuming errors")))
+    (is string= "foo"
+        (parse-string foo-or-bar "foo"))
+
+    (is string= "bar"
+        (parse-string foo-or-bar "bar"))))
 
 (define-test parse-let
   :depends-on (predicate-parser)
@@ -320,6 +375,18 @@
 
     (fail (parse-string parser "!")
           'parser-expected-element)))
+
+(define-test parse-defer
+  :depends-on (char-parser)
+  (let* (the-char
+         (parser (parse-defer (char-parser the-char))))
+    (setf the-char #\a)
+    (is char= #\a
+        (parse-string parser "a"))
+
+    (setf the-char #\b)
+    (is char= #\b
+        (parse-string parser "b"))))
 
 
 

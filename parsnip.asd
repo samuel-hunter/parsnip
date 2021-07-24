@@ -13,8 +13,7 @@
   :source-control (:git "https://git.sr.ht/~shunter/parsnip")
   :bug-tracker "https://todo.sr.ht/~shunter/parsnip"
 
-  :depends-on (#:alexandria
-               #:trivial-lazy)
+  :depends-on (#:alexandria)
   :components ((:file "parsnip"))
   :in-order-to ((asdf:test-op (asdf:test-op :parsnip/test))))
 
