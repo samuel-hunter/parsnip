@@ -7,7 +7,7 @@
   :description "Quickly combine small parsers together"
   :author "Samuel Hunter"
   :license  "BSD 3-Clause"
-  :version "0.0.2"
+  :version "0.0.3"
 
   :homepage "https://sr.ht/~shunter/parsnip/"
   :source-control (:git "https://git.sr.ht/~shunter/parsnip")
@@ -21,7 +21,7 @@
   :description "Parsnip library examples"
   :author "Samuel Hunter"
   :license "BSD 3-Clause"
-  :version "0.0.2"
+  :version "0.0.3"
 
   :depends-on (#:parsnip
                #:alexandria)
@@ -33,7 +33,7 @@
   :description "Parsnip library test suite"
   :author "Samuel Hunter"
   :license "BSD 3-Clause"
-  :version "0.0.2"
+  :version "0.0.3"
 
   :depends-on (#:parsnip
                #:parsnip/examples
