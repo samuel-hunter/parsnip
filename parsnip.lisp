@@ -46,7 +46,7 @@
 
 
 (define-condition parser-expected-element (stream-error)
-  ((name :initarg :name :reader parser-element-name))
+  ((element-name :initarg :name :reader parser-element-name))
   (:report (lambda (condition stream)
              (format stream "Expected element ~S on ~S"
                      (parser-element-name condition)
@@ -195,12 +195,14 @@
 (defun parse-progn (&rest parsers)
   "Compose multiple parsers to run them in sequence, returning the last
    parser's value. Consumes input on failure when the first parser succeeds."
-  (reduce (lambda (head-parser tail-parser)
-            (lambda (stream)
-              (with-just (funcall head-parser stream) ()
-                (funcall tail-parser stream))))
-          parsers
-          :from-end t))
+  (assert (plusp (length parsers)))
+  (lambda (stream)
+    (do* ((parsers-left parsers (rest parsers-left))
+          result)
+      ((null parsers-left) result)
+      (setf result (funcall (first parsers-left) stream))
+      (when (failurep result)
+        (return result)))))
 
 (defun parse-prog1 (first-parser &rest parsers)
   "Compose multiple parsers to run them in sequence, returning the first
@@ -285,14 +287,14 @@
 
    Fails with a list of expected values if all parsers are exhausted.
    Fails when a failing parser consumes input."
-  (reduce (lambda (head-parser tail-parser)
-            (lambda (stream)
-              (with-failure (funcall head-parser stream) ()
-                (funcall tail-parser stream))))
-          parsers
-          :from-end t
-          :initial-value (lambda (stream)
-                           (expected parsers stream nil))))
+  (lambda (stream)
+    (do ((parsers-left parsers (rest parsers-left)))
+        ((null parsers-left)
+         (expected parsers stream nil))
+        (let ((result (funcall (first parsers-left) stream)))
+          (when (or (justp result)
+                    (failure-consumed-chars result))
+            (return result))))))
 
 (defun parse-optional (parser &optional default)
   "Enhance the parser to resume from an error with a default value if it did
@@ -325,10 +327,9 @@
         (just result)
         (failure (let ((err (failure-error result)))
                    (if (typep err 'parser-expected-element)
-                       (failure (failure-consumed-chars result)
-                                (make-condition 'parser-expected-element
-                                                :name name
-                                                :stream (stream-error-stream err)))
+                       (progn (setf (slot-value err 'element-name)
+                                    name)
+                              result)
                        result)))))))
 
 (defmacro parse-let (bindings &body body)
