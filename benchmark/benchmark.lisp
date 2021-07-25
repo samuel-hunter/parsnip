@@ -32,3 +32,5 @@
 
   (format t "~%~%~%CL-JSON:~%")
   (benchmark-decoder #'cl-json:decode-json))
+
+(benchmark)

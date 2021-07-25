@@ -55,36 +55,11 @@
 (defclass result ()
   ())
 
-(defclass just (result)
-  ((value :initarg :value :reader just-value)))
+(defstruct (just (:constructor just (value)))
+  value)
 
-(defclass failure (result)
-  ((error :initarg :error :reader failure-error)
-   (consumed-chars :initarg :consumed-chars
-                   :reader failure-consumed-chars)))
-
-(defmethod print-object ((object just) stream)
-  (print-unreadable-object (object stream :type t)
-    (print (just-value object) stream)))
-
-(defmethod print-object ((object failure) stream)
-  (print-unreadable-object (object stream :type t)
-    (print (failure-error object) stream)))
-
-(defun just (value)
-  (make-instance 'just
-                 :value value))
-
-(defun failure (consumed-chars error)
-  (make-instance 'failure
-                 :error error
-                 :consumed-chars consumed-chars))
-
-(defun justp (result)
-  (typep result 'just))
-
-(defun failurep (result)
-  (typep result 'failure))
+(defstruct (failure (:constructor failure (consumed-chars error)))
+  error consumed-chars)
 
 (defun expected (name stream consumed-chars)
   (failure consumed-chars
@@ -201,7 +176,7 @@
           result)
       ((null parsers-left) result)
       (setf result (funcall (first parsers-left) stream))
-      (when (failurep result)
+      (when (failure-p result)
         (return result)))))
 
 (defun parse-prog1 (first-parser &rest parsers)
@@ -230,7 +205,7 @@
   (lambda (stream)
     (do ((list () (cons (just-value result) list))
          (result (funcall parser stream) (funcall parser stream)))
-        ((failurep result)
+        ((failure-p result)
          (with-failure result ()
            (just (nreverse list)))))))
 
@@ -253,7 +228,7 @@
   (lambda (stream)
     (do ((value initial-value (funcall function value (just-value result)))
          (result (funcall parser stream) (funcall parser stream)))
-        ((failurep result)
+        ((failure-p result)
          (with-failure result ()
            (just value))))))
 
@@ -262,7 +237,7 @@
    faliure only if the containing parser consums input during failure."
   (lambda (stream)
     (do ((result (funcall parser stream) (funcall parser stream)))
-        ((failurep result)
+        ((failure-p result)
          (with-failure result () (just value))))))
 
 (defun parse-take (times parser)
@@ -292,7 +267,7 @@
         ((null parsers-left)
          (expected parsers stream nil))
         (let ((result (funcall (first parsers-left) stream)))
-          (when (or (justp result)
+          (when (or (just-p result)
                     (failure-consumed-chars result))
             (return result))))))
 
@@ -309,14 +284,11 @@
   (lambda (stream)
     (let ((old-position (file-position stream))
           (result (funcall parser stream)))
-      (if (and (failurep result)
-               (failure-consumed-chars result))
-          (progn
-            (file-position stream old-position)
-            (make-instance 'failure
-                           :error (failure-error result)
-                           :consumed-chars nil))
-          result))))
+      (when (and (failure-p result)
+                 (failure-consumed-chars result))
+        (file-position stream old-position)
+        (setf (failure-consumed-chars result) nil))
+      result)))
 
 (defun parse-name (name parser)
   "Maps parser-expected-element errors to provide the given name of the
