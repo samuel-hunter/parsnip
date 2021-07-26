@@ -23,8 +23,8 @@ Most everything else (quickstart documentation, benchmarking) can follow, but pe
   - [ ] 95% code coverage in `parsnip.lisp` (Tried using Coveralls, didn't work out very well. Maybe use [sb-cover](http://www.sbcl.org/manual/#sb_002dcover)?)
   - [ ] Benchmarks should have a reasonable speed.
         I don't plan for this library to be the fastest, but it shouldn't be snailing either.
-	The current speed of the JSON example is about 4x slower than cl-json; I don't think this is acceptable.
-	I think an obtainable goal is being twice as slow.
+	The current speed of the JSON example is about 2.25x slower than cl-json.
+	This is very close to my target of being only twice as slow.
 - [ ] Documentation
   - [ ] Code examples with real formats
     - [X] JSON
