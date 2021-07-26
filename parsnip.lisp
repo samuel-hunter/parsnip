@@ -45,6 +45,19 @@
 
 
 
+(defstruct (just (:constructor just (value)))
+  value)
+
+(defstruct failure
+  stream consumed-chars)
+
+(defstruct (expected (:constructor expected (name stream consumed-chars))
+                     (:include failure))
+  name)
+
+(defstruct (eof (:constructor eof (stream consumed-chars))
+                (:include failure)))
+
 (define-condition parser-expected-element (stream-error)
   ((element-name :initarg :name :reader parser-element-name))
   (:report (lambda (condition stream)
@@ -52,31 +65,20 @@
                      (parser-element-name condition)
                      (stream-error-stream condition)))))
 
-(defclass result ()
-  ())
-
-(defstruct (just (:constructor just (value)))
-  value)
-
-(defstruct (failure (:constructor failure (consumed-chars error)))
-  error consumed-chars)
-
-(defun expected (name stream consumed-chars)
-  (failure consumed-chars
-           (make-condition 'parser-expected-element
-                           :name name
-                           :stream stream)))
-
-(defun eof (stream consumed-chars)
-  (failure consumed-chars
-           (make-condition 'end-of-file
-                           :stream stream)))
+(defun error-failure (failure)
+  "Signal an error depending on the given failure."
+  (etypecase failure
+    (expected (error 'parser-expected-element
+                     :stream (failure-stream failure)
+                     :element-name (expected-name failure)))
+    (eof (error 'end-of-file
+                :stream (failure-stream failure)))))
 
 (defun parse (parser stream)
   (let ((result (funcall parser stream)))
     (etypecase result
       (just (just-value result))
-      (failure (error (failure-error result))))))
+      (failure (error-failure result)))))
 
 
 
@@ -130,32 +132,13 @@
                   `(progn ,@body)))
        (failure ,form))))
 
-(defmacro with-failure (form (&optional error) &body body)
+(defmacro with-failure (form () &body body)
   (once-only (form)
     `(etypecase ,form
        (just ,form)
        (failure (if (failure-consumed-chars ,form)
                     ,form
-                    ,(if error
-                         `(let ((,error (failure-error ,form)))
-                            ,@body)
-                         `(progn ,@body)))))))
-
-(defmacro with-result (form
-                       ((&optional just-value) &body just-body)
-                       ((&optional failure-error) &body failure-body))
-  (once-only (form)
-    `(etypecase ,form
-       (just ,(if just-value
-                  `(let ((,just-value (just-value ,form)))
-                     ,@just-body)
-                  `(progn ,@just-body)))
-       (failure (if (failure-consumed-chars ,form)
-                    ,form
-                    ,(if failure-error
-                         `(let ((,failure-error (failure-error ,form)))
-                            ,@failure-body)
-                         `(progn ,@failure-body)))))))
+                    (progn ,@body))))))
 
 
 
@@ -291,18 +274,13 @@
       result)))
 
 (defun parse-name (name parser)
-  "Maps parser-expected-element errors to provide the given name of the
-   element."
+  "Maps failures expecting an element to provide the given element's name."
   (lambda (stream)
     (let ((result (funcall parser stream)))
       (etypecase result
-        (just result)
-        (failure (let ((err (failure-error result)))
-                   (if (typep err 'parser-expected-element)
-                       (progn (setf (slot-value err 'element-name)
-                                    name)
-                              result)
-                       result)))))))
+        (expected (progn (setf (expected-name result) name)
+                         result))
+        ((or just failure) result)))))
 
 (defmacro parse-let (bindings &body body)
   "Composes multiple parsers together to bind their results to variables and
