@@ -54,82 +54,6 @@
 (defparameter *value-separator*
   (trim-ws (char-parser #\,)))
 
-;;; RFC 8259 § 4. Objects
-
-;; member := string name-separator value
-(defparameter *member*
-  (parse-let ((name *string*)
-              (value (parse-progn *name-separator*
-                                  *value*)))
-    (cons name value)))
-
-;; object := begin-object [ member ( value-separator member ) + ] end-object
-(defparameter *object*
-  (parse-prog2
-    *begin-object*
-    (parse-optional (parse-let ((first-member *member*)
-                                (other-members
-                                  (parse-collect (parse-progn
-                                                   *value-separator*
-                                                   *member*))))
-                      (cons first-member other-members))
-                    nil)
-    *end-object*))
-
-;;; RFC 8259 § 5. Arrays
-
-;; array := begin-array [ value ( value-separator value )+ ] end-array
-(defparameter *array*
-  (parse-prog2
-    *begin-array*
-    (parse-optional (parse-let ((first-value *value*)
-                                (other-values
-                                  (parse-collect (parse-progn
-                                                   *value-separator*
-                                                   *value*))))
-                      (cons first-value other-values))
-                    nil)
-    *end-array*))
-
-;; RFC 8259 § 6. Numbers
-
-;; digit := [0123456789]
-(defparameter *digit*
-  (parse-name 'digit (predicate-parser #'digit-char-p)))
-
-;; int := digit+
-(defparameter *int*
-  (parse-map (parse-collect1 *digit*)
-             (lambda (digits) (parse-integer (coerce digits 'string)))))
-
-;; frac := '.' int
-(defparameter *frac*
-  (parse-progn (char-parser #\.)
-               (parse-let ((digits (parse-collect1 *digit*)))
-                 (/ (parse-integer (coerce digits 'string))
-                    (expt 10 (length digits))))))
-
-;; exp := 'e' ['+' | '-'] int
-(defparameter *exp*
-  (parse-progn (char-parser #\e)
-               (parse-let ((sign (parse-optional (charbag-parser "+-") #\+))
-                           (number *int*))
-                 (* (if (char= sign #\+)
-                        1 -1)
-                    number))))
-
-;; number := [minus] int [frac] [exp]
-(defparameter *number*
-  (parse-let ((sign (parse-optional (char-parser #\-)))
-              (whole-part *int*)
-              (frac-part (parse-optional *frac* 0))
-              (exp-part (parse-optional *exp* 0)))
-    (setf sign (if sign -1 1))
-    (if (and (zerop frac-part)
-             (zerop exp-part))
-        (* sign whole-part)
-        (float (* sign (+ whole-part frac-part) (expt 10 exp-part))))))
-
 ;; RFC 8259 § 7. Strings
 
 (defparameter *char-code*
@@ -178,6 +102,87 @@
                                        :adjustable t
                                        :fill-pointer 0)))
     (char-parser #\")))
+
+;;; RFC 8259 § 4. Objects
+
+;; member := string name-separator value
+(defparameter *member*
+  (parse-let ((name *string*)
+              (value (parse-progn *name-separator*
+                                  (parse-defer *value*))))
+    (cons name value)))
+
+(parse-let ((name *string*)
+            (value (parse-progn *name-separator*
+                                (parse-defer *value*))))
+  BODY)
+
+;; object := begin-object [ member ( value-separator member ) + ] end-object
+(defparameter *object*
+  (parse-prog2
+    *begin-object*
+    (parse-optional (parse-let ((first-member *member*)
+                                (other-members
+                                  (parse-collect (parse-progn
+                                                   *value-separator*
+                                                   *member*))))
+                      (cons first-member other-members))
+                    nil)
+    *end-object*))
+
+;;; RFC 8259 § 5. Arrays
+
+;; array := begin-array [ value ( value-separator value )+ ] end-array
+(defparameter *array*
+  (parse-prog2
+    *begin-array*
+    (parse-optional (parse-let ((first-value (parse-defer *value*))
+                                (other-values
+                                  (parse-collect (parse-progn
+                                                   *value-separator*
+                                                   (parse-defer *value*)))))
+                      (cons first-value other-values))
+                    nil)
+    *end-array*))
+
+;; RFC 8259 § 6. Numbers
+
+;; digit := [0123456789]
+(defparameter *digit*
+  (parse-name 'digit (predicate-parser #'digit-char-p)))
+
+;; int := digit+
+(defparameter *int*
+  (parse-map (parse-collect1 *digit*)
+             (lambda (digits) (parse-integer (coerce digits 'string)))))
+
+;; frac := '.' int
+(defparameter *frac*
+  (parse-progn (char-parser #\.)
+               (parse-let ((digits (parse-collect1 *digit*)))
+                 (/ (parse-integer (coerce digits 'string))
+                    (expt 10 (length digits))))))
+
+;; exp := 'e' ['+' | '-'] int
+(defparameter *exp*
+  (parse-progn (char-parser #\e)
+               (parse-let ((sign (parse-optional (charbag-parser "+-") #\+))
+                           (number *int*))
+                 (* (if (char= sign #\+)
+                        1 -1)
+                    number))))
+
+;; number := [minus] int [frac] [exp]
+(defparameter *number*
+  (parse-let ((sign (parse-optional (char-parser #\-)))
+              (whole-part *int*)
+              (frac-part (parse-optional *frac* 0))
+              (exp-part (parse-optional *exp* 0)))
+    (setf sign (if sign -1 1))
+    (if (and (zerop frac-part)
+             (zerop exp-part))
+        (* sign whole-part)
+        (float (* sign (+ whole-part frac-part) (expt 10 exp-part))))))
 
 ;; RFC 8259 § 3. Values
 
