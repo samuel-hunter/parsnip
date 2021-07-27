@@ -91,16 +91,20 @@
 
 ;; string := quotation char+ quotation
 
+(defun add-to-string (string c)
+  "Add a character to an adjustable string and return it."
+  (vector-push-extend c string)
+  string)
+
 (defparameter *string*
   (parse-prog2
     (char-parser #\")
     (parse-defer
-      (parse-reduce (lambda (string c)
-                      (vector-push-extend c string)
-                      string)
-                    *char* (make-array 0 :element-type 'character
-                                       :adjustable t
-                                       :fill-pointer 0)))
+      (parse-reduce #'add-to-string
+                    *char*
+                    (make-array 0 :element-type 'character
+                                :adjustable t
+                                :fill-pointer 0)))
     (char-parser #\")))
 
 ;;; RFC 8259 § 4. Objects
@@ -109,13 +113,8 @@
 (defparameter *member*
   (parse-let ((name *string*)
               (value (parse-progn *name-separator*
-                                  (parse-defer *value*))))
+                                  #'value)))
     (cons name value)))
-
-(parse-let ((name *string*)
-            (value (parse-progn *name-separator*
-                                (parse-defer *value*))))
-  BODY)
 
 ;; object := begin-object [ member ( value-separator member ) + ] end-object
 (defparameter *object*
@@ -136,11 +135,11 @@
 (defparameter *array*
   (parse-prog2
     *begin-array*
-    (parse-optional (parse-let ((first-value (parse-defer *value*))
+    (parse-optional (parse-let ((first-value #'value)
                                 (other-values
                                   (parse-collect (parse-progn
                                                    *value-separator*
-                                                   (parse-defer *value*)))))
+                                                   #'value))))
                       (cons first-value other-values))
                     nil)
     *end-array*))
@@ -195,7 +194,7 @@
              (constantly value)))
 
 ;; value := 'false' | 'null' | 'true' | object | array | number | string
-(defparameter *value*
+(defparser value ()
   (parse-any
     (literal-parser #\f "alse" :false)
     (literal-parser #\n "ull" :null)
@@ -207,7 +206,7 @@
 
 ;; text := ws value ws
 (defparameter *text*
-  (trim-ws *value*))
+  (trim-ws #'value))
 
 
 
