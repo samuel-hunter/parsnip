@@ -31,18 +31,87 @@ Most everything else (quickstart documentation, benchmarking) can follow, but pe
     - [X] JSON
     - [ ] Minimal C-family language grammar
   - [x] Docstrings in all external functions and macros
-  - [ ] Quickstart within the README
+  - [x] Quickstart within the README
   - [ ] A full reference somewhere, maybe within the README
 - [ ] Peer review. I need more than myself looking at the project. Many eyes are welcome :)
 - [ ] A nice drawing of a parsnip :)
 
+## Contributions
+
+Any comments, questions, issues, or patches are greatly appreciated!
+I do my main development on [Sourcehut](https://sr.ht/~shunter/parsnip/), with a [mailing list](https://lists.sr.ht/~shunter/public-inbox) and [issue tracker](https://todo.sr.ht/~shunter/parsnip).
+
 ## Quickstart
 
-TODO
+Install parsnip (and [alexandria](https://common-lisp.net/project/alexandria/) if you don't have Quicklisp) to your local projects:
+
+```sh
+$ cd ~/common-lisp/
+$ git clone https://git.sr.ht/~shunter/parsnip
+```
+
+```lisp
+(require :parsnip)
+(use-package :parsnip)
+```
+
+Parsnip has a few parser primitives and many combinators to put them together:
+
+```lisp
+;; digit := [0-9]
+(defparameter *digit*
+  (predicate-parser #'digit-char-p))
+
+(defparameter *digits*
+  (parse-collect1 *digit*))
+
+;; integer := digit+
+(defparameter *integer*
+  (parse-let ((digits *digits*))
+    (parse-integer (coerce digits 'string))))
+
+;; decimal-part := '.' integer
+(defparameter *decimal-part*
+  (parse-let ((digits (parse-progn (char-parser #\.)
+                                   *digits*)))
+    (/ (parse-integer (coerce digits 'string))
+       (expt 10 (length digits)))))
+
+;; number := integer [ decimal-part ]
+(defparameter *number*
+  (parse-let ((integer *integer*)
+              (decimal (parse-optional *decimal-part* 0)))
+    (+ integer decimal)))
+
+(with-input-from-string (stream "123.47")
+  (let ((number (parse *number* stream)))
+    (print number))) ;; => 12347/100
+```
+
+You can use `defparser` to define a parser as a function, enabling forward-referencing for circular grammar:
+
+```lisp
+;; Not a complete parser:
+
+;; list := '(' value* ')'
+(defparameter *list*
+  (parse-prog2 list-begin #'value list-end))
+
+;; value := list | number | symbol | keyword
+(defparser value
+  (parse-any *list*
+             *number*
+	     *symbol*
+	     *keyword*))
+```
+
+## Reference
+
+The [test suite](./test.lisp) shows how each function works, and how it's expected to perform
 
 ## Examples
 
-[The JSON example](./examples/json.lisp) matches extremely close to the grammar notation of the [RFC8259 JSON specification](https://datatracker.ietf.org/doc/html/rfc8259).
+The [JSON example](./examples/json.lisp) matches extremely close to the grammar notation of the [RFC8259 JSON specification](https://datatracker.ietf.org/doc/html/rfc8259).
 Outside of a couple outliers (the value grammar is moved to the end), the code is laid out nearly section-by-section as stated in the RFC.
 
 TODO a C-family language example
