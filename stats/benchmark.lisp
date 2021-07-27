@@ -16,7 +16,7 @@
 
 
 (defparameter +large-json-path+
-  (merge-pathnames #P"benchmark/large.json"
+  (merge-pathnames #P"stats/large.json"
                    (asdf:system-source-directory :parsnip)))
 
 (defun benchmark-stream-decoder (decoder)
@@ -34,6 +34,9 @@
       (dotimes (n 100) (funcall decoder payload)))))
 
 (defun benchmark ()
+  (asdf:oos 'asdf:load-op :parsnip :force t)
+  (asdf:oos 'asdf:load-op :parsnip/examples :force t)
+
   (format t "===READING FROM STREAM~%")
   (format t "PARSNIP:~%")
   (benchmark-stream-decoder #'read-json)
