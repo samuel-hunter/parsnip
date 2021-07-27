@@ -283,17 +283,18 @@
         ((or just failure) result)))))
 
 (defmacro parse-let (bindings &body body)
-  "Composes multiple parsers together to bind their results to variables and
+  "Compose multiple parsers together to bind their results to variables and
    return a value within the body. Consumes input on error when the first parse
    succeeds."
-  (flet ((bind-just (stream binding result-form)
-           (destructuring-bind (var form) binding
-             `(with-just (funcall ,form ,stream) (,var) ,result-form))))
+  (flet ((bind-just (stream var result-form)
+           `(with-just (funcall ,var ,stream) (,var)
+              ,result-form)))
     (with-gensyms (stream)
       `(lambda (,stream)
-         ,(reduce (curry #'bind-just stream) bindings
-                  :initial-value `(just (progn ,@body))
-                  :from-end t)))))
+         (let ,bindings
+           ,(reduce (curry #'bind-just stream) (mapcar #'car bindings)
+                    :initial-value `(just (progn ,@body))
+                    :from-end t))))))
 
 (defmacro parse-defer (form)
   "Defer evaluating the parser-returning FORM until the parser is called.
