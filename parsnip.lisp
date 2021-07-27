@@ -39,7 +39,8 @@
            #:parse-name
 
            #:parse-let
-           #:parse-defer))
+           #:parse-defer
+           #:defparser))
 
 (in-package #:xyz.shunter.parsnip)
 
@@ -301,3 +302,9 @@
    Useful for circular-referencing parsers."
   (with-gensyms (stream)
     `(lambda (,stream) (funcall ,form ,stream))))
+
+(defmacro defparser (name () &body body)
+  "Define a parser as a function."
+  (with-gensyms (stream)
+    `(defun ,name (,stream)
+       (funcall (progn ,@body) ,stream))))
