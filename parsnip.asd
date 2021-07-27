@@ -6,6 +6,7 @@
 (asdf:defsystem #:parsnip
   :description "Quickly combine small parsers together"
   :author "Samuel Hunter"
+  :mailto "\s\a\m\u\e\l\@\s\h\u\n\t\e\r\.\x\y\z"
   :license  "BSD 3-Clause"
   :version "0.0.3"
 
