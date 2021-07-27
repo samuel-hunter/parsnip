@@ -13,7 +13,7 @@
                 #:rcurry
                 #:compose)
   (:export #:parser-expected-element
-           #:parser-element-name
+           #:parser-error-name
            #:parse
 
            #:char-parser
@@ -46,18 +46,25 @@
 
 
 
-(defstruct (just (:constructor just (value)))
+(defstruct (just (:constructor just (value))
+                 (:copier nil))
   value)
 
-(defstruct failure
+(defstruct (failure (:constructor nil)
+                    (:copier nil)
+                    (:print-function nil))
   stream consumed-chars)
 
 (defstruct (expected (:constructor expected (name stream consumed-chars))
-                     (:include failure))
+                     (:include failure)
+                     (:copier nil)
+                     (:predicate nil))
   name)
 
 (defstruct (eof (:constructor eof (stream consumed-chars))
-                (:include failure)))
+                (:include failure)
+                (:copier nil)
+                (:predicate nil)))
 
 (define-condition parser-expected-element (stream-error)
   ((element-name :initarg :name :reader parser-element-name))
@@ -76,6 +83,7 @@
                 :stream (failure-stream failure)))))
 
 (defun parse (parser stream)
+  "Run a parser through a given stream and raise any failures as a condition."
   (let ((result (funcall parser stream)))
     (etypecase result
       (just (just-value result))
@@ -304,7 +312,8 @@
     `(lambda (,stream) (funcall ,form ,stream))))
 
 (defmacro defparser (name () &body body)
-  "Define a parser as a function."
+  "Define a parser as a function.
+   Enables other parsers to forward-reference it before it is defined."
   (with-gensyms (stream)
     `(defun ,name (,stream)
        (funcall (progn ,@body) ,stream))))
