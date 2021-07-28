@@ -394,69 +394,69 @@
 
 (define-test json-numbers
   (is = 123
-      (read-json-from-string "123"))
+      (decode-json-from-string "123"))
 
   (is = 50
-      (read-json-from-string "000050"))
+      (decode-json-from-string "000050"))
 
   (is = -123
-      (read-json-from-string "-123"))
+      (decode-json-from-string "-123"))
 
   (is close-enough 1.5
-      (read-json-from-string "1.5"))
+      (decode-json-from-string "1.5"))
 
   (is close-enough 1.05
-      (read-json-from-string "1.05"))
+      (decode-json-from-string "1.05"))
 
   (is close-enough 1e5
-      (read-json-from-string "1e5"))
+      (decode-json-from-string "1e5"))
 
   (is close-enough 1e5
-      (read-json-from-string "1e+5"))
+      (decode-json-from-string "1e+5"))
 
   (is close-enough 1e-5
-      (read-json-from-string "1e-5"))
+      (decode-json-from-string "1e-5"))
 
   (is close-enough 15.0
-      (read-json-from-string "1.5e1")))
+      (decode-json-from-string "1.5e1")))
 
 (define-test json-strings
   (is string= "hello, world"
-      (read-json-from-string "\"hello, world\""))
+      (decode-json-from-string "\"hello, world\""))
 
   (is string= (coerce #(#\" #\\ #\/ #\Backspace #\Page #\Newline #\Return #\Tab) 'string)
-      (read-json-from-string "\"\\\"\\\\\\/\\b\\f\\n\\r\\t\""))
+      (decode-json-from-string "\"\\\"\\\\\\/\\b\\f\\n\\r\\t\""))
 
   (is string= "(λ (n) (* n n))"
-      (read-json-from-string "\"(\\u03BB (n) (* n n))\"")))
+      (decode-json-from-string "\"(\\u03BB (n) (* n n))\"")))
 
 (define-test json-arrays
   :depends-on (json-numbers json-strings)
   (is equal '(10 20 30)
-      (read-json-from-string "[10,20,30]"))
+      (decode-json-from-string "[10,20,30]"))
 
   (is equal '(10)
-      (read-json-from-string "[10]"))
+      (decode-json-from-string "[10]"))
 
   (is equal ()
-      (read-json-from-string "[]"))
+      (decode-json-from-string "[]"))
 
   (is equal '(10 "string" (20 30 40))
-      (read-json-from-string "[10, \"string\", [20, 30, 40]]"))
+      (decode-json-from-string "[10, \"string\", [20, 30, 40]]"))
 
   (is equal '(10 20 30)
-      (read-json-from-string " [ 10 , 20 , 30 ] ")))
+      (decode-json-from-string " [ 10 , 20 , 30 ] ")))
 
 (define-test json-objects
   :depends-on (json-numbers json-strings)
   (is equal '(("key" . "value"))
-      (read-json-from-string "{\"key\":\"value\"}"))
+      (decode-json-from-string "{\"key\":\"value\"}"))
 
   (is equal '(("one" . 1) ("two" . 2) ("three" . 3))
-      (read-json-from-string "{\"one\":1,\"two\":2,\"three\":3}"))
+      (decode-json-from-string "{\"one\":1,\"two\":2,\"three\":3}"))
 
   (is equal '(("object" . (("key" . "value"))))
-      (read-json-from-string "{\"object\":{\"key\":\"value\"}}"))
+      (decode-json-from-string "{\"object\":{\"key\":\"value\"}}"))
 
   (is equal '(("key" . "value") ("foo" . "bar"))
-      (read-json-from-string " { \"key\" : \"value\" , \"foo\" : \"bar\" }")))
+      (decode-json-from-string " { \"key\" : \"value\" , \"foo\" : \"bar\" }")))
