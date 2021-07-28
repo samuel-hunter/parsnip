@@ -4,15 +4,15 @@
 ;;; BSD-3-Clause
 
 (asdf:defsystem #:parsnip
-  :description "Quickly combine small parsers together"
+  :description "Parser combinator library"
   :author "Samuel Hunter"
-  :mailto "\~\s\h\u\n\t\e\r\/\p\u\b\l\i\c\-\i\n\b\o\x\@\l\i\s\t\s\.\s\r\.\h\t"
   :license  "BSD 3-Clause"
   :version "0.0.3"
 
   :homepage "https://sr.ht/~shunter/parsnip/"
   :source-control (:git "https://git.sr.ht/~shunter/parsnip")
   :bug-tracker "https://todo.sr.ht/~shunter/parsnip"
+  :mailto "\~\s\h\u\n\t\e\r\/\p\u\b\l\i\c\-\i\n\b\o\x\@\l\i\s\t\s\.\s\r\.\h\t"
 
   :depends-on (#:alexandria)
   :components ((:file "parsnip"))

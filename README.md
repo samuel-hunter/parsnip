@@ -8,8 +8,8 @@ I don't trust third-party libraries that don't trust themselves, so I've made my
 
 ## Road to Production-Readiness
 
-The main bottleneck to production-readiness is figuring out an 80% stable API and calling it good.
-Most everything else (quickstart documentation, benchmarking) can follow, but per-function docs and unit tests can be done as the API develops.
+The general API is figured out -- it should change minimally through 0.1.0.
+Most everything else (quickstart documentation, benchmarking) can now follow.
 
 - [ ] The external API is stable, including primitive parsers and parser combinators
   - [x] All parsers are limited to a non-seeking stream with a 1-character peek buffer (outside `parse-try`)
@@ -20,8 +20,9 @@ Most everything else (quickstart documentation, benchmarking) can follow, but pe
 	I should program some example error reporting to showcase.
 - [ ] Code tests
   - [ ] Every external function and macro is unit-tested.
-        This is almost true. `defparser` is the only macro left.
-  - [ ] 95% code coverage in `parsnip.lisp` as reported by `sb-cover`.
+        This is almost true. `defparser` and `parser-name` is the only two left.
+  - [x] 95% code coverage in `parsnip.lisp` as reported by `sb-cover`.
+        True as of commit `0b7a7173cd5b54799378a2b306035bc1feef13e3` - 95.7% coverage in expressions, and 100% coverage in branches
   - [ ] Benchmarks should have a reasonable speed.
         I don't plan for this library to be the fastest, but it shouldn't be snailing either.
 	The current speed of the JSON example is about 2.25x slower than cl-json.
@@ -29,7 +30,8 @@ Most everything else (quickstart documentation, benchmarking) can follow, but pe
 - [ ] Documentation
   - [ ] Code examples with real formats
     - [X] JSON
-    - [ ] Minimal C-family language grammar
+    - [ ] Some C-family programming language
+    - [ ] Lay structure for `cl-abc2` project to link
   - [x] Docstrings in all external functions and macros
   - [x] Quickstart within the README
   - [ ] A full reference somewhere, maybe within the README
@@ -114,4 +116,6 @@ The [test suite](./test.lisp) shows how each function works, and how it's expect
 The [JSON example](./examples/json.lisp) matches extremely close to the grammar notation of the [RFC8259 JSON specification](https://datatracker.ietf.org/doc/html/rfc8259).
 Outside of a couple outliers (the value grammar is moved to the end), the code is laid out nearly section-by-section as stated in the RFC.
 
-TODO a C-family language example
+I plan to be writing a parser for [ABC notation v2.1](http://abcnotation.com/wiki/abc:standard:v2.1) after I feel reasonabily finished with this project.
+
+TODO I would like to demonstrate a C-family programming language being parsed in the future.

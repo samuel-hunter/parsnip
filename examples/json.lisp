@@ -4,13 +4,13 @@
 ;;; BSD-3-Clause
 
 (defpackage #:xyz.shunter.parsnip.examples.json
-  (:documentation "A Parsnip implementation of a JSON reader")
-  (:use #:cl #:parsnip)
+  (:documentation "Parsnip example JSON decoder")
+  (:use #:cl #:xyz.shunter.parsnip)
   (:import-from #:alexandria
                 #:eswitch
                 #:rcurry)
-  (:export #:read-json
-           #:read-json-from-string))
+  (:export #:decode-json
+           #:decode-json-from-string))
 
 (in-package #:xyz.shunter.parsnip.examples.json)
 
@@ -210,9 +210,9 @@
 
 
 
-(defun read-json (&optional (stream *standard-input*))
+(defun decode-json (&optional (stream *standard-input*))
   (parse *text* stream))
 
-(defun read-json-from-string (string)
+(defun decode-json-from-string (string)
   (with-input-from-string (stream string)
-    (read-json stream)))
+    (decode-json stream)))

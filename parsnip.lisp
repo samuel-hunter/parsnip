@@ -4,6 +4,7 @@
 ;;; BSD-3-Clause
 
 (defpackage #:xyz.shunter.parsnip
+  (:documentation "Parser combinator library")
   (:nicknames #:parsnip)
   (:use #:cl)
   (:import-from #:alexandria
