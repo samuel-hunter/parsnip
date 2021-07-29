@@ -70,8 +70,8 @@
 
 ;; hex-digit := [0123456789ABCDEFabcdef]
 (defparameter *hex-digit*
-  (parse-name 'hexadecimal-digit
-              (predicate-parser (rcurry #'digit-char-p 16))))
+  (parse-tag :hexadecimal-digit
+             (predicate-parser (rcurry #'digit-char-p 16))))
 
 (defparameter *unicode-char*
   (parse-progn (char-parser #\u)
@@ -148,7 +148,7 @@
 
 ;; digit := [0123456789]
 (defparameter *digit*
-  (parse-name 'digit (predicate-parser #'digit-char-p)))
+  (parse-tag :digit (predicate-parser #'digit-char-p)))
 
 ;; int := digit+
 (defparameter *int*
