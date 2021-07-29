@@ -1,6 +1,8 @@
 # Parsnip
 [![builds.sr.ht status](https://builds.sr.ht/~shunter/parsnip/commits/test.yml.svg)](https://builds.sr.ht/~shunter/parsnip/commits/test.yml)
 
+![Parsnip brand doodle](./brand.png)
+
 Quickly make combine small parsers together.
 
 Other parser combinator libraries I've found in the Common Lisp ecosystem is either extremely macro-heavy, or warns that it is not production-ready.
@@ -35,7 +37,7 @@ Most everything else (quickstart documentation, benchmarking) can now follow.
   - [x] Quickstart within the README
   - [ ] A full reference somewhere, maybe within the README
 - [ ] Peer review. I need more than myself looking at the project. Many eyes are welcome :)
-- [ ] A nice drawing of a parsnip :)
+- [x] A nice drawing of a parsnip :)
 
 ## Contributions
 
