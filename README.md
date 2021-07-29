@@ -19,8 +19,7 @@ Most everything else (quickstart documentation, benchmarking) can now follow.
 	Maybe failures could build up a return trace a la [Zig](https://ziglang.org/documentation/master/#Error-Return-Traces).
 	I should program some example error reporting to showcase.
 - [ ] Code tests
-  - [ ] Every external function and macro is unit-tested.
-        This is almost true. `defparser` and `parser-name` is the only two left.
+  - [x] Every external function is unit-tested.
   - [x] 95% code coverage in `parsnip.lisp` as reported by `sb-cover`.
         True as of commit `0b7a7173cd5b54799378a2b306035bc1feef13e3` - 95.7% coverage in expressions, and 100% coverage in branches
   - [ ] Benchmarks should have a reasonable speed.
@@ -31,7 +30,7 @@ Most everything else (quickstart documentation, benchmarking) can now follow.
   - [ ] Code examples with real formats
     - [X] JSON
     - [ ] Some C-family programming language
-    - [ ] Lay structure for `cl-abc2` project to link
+    - [ ] Lay down structure for `cl-abc2` project to link
   - [x] Docstrings in all external functions and macros
   - [x] Quickstart within the README
   - [ ] A full reference somewhere, maybe within the README

@@ -13,7 +13,7 @@
                 #:curry
                 #:rcurry
                 #:compose)
-  (:export #:parser-expected-element
+  (:export #:parser-error
            #:parser-error-name
            #:parse
 
@@ -56,16 +56,16 @@
                     (:print-function nil))
   name stream consumed-chars)
 
-(define-condition parser-expected-element (stream-error)
-  ((element-name :initarg :name :reader parser-element-name))
+(define-condition parser-error (stream-error)
+  ((element-name :initarg :name :reader parser-error-name))
   (:report (lambda (condition stream)
              (format stream "Expected element ~S on ~S"
-                     (parser-element-name condition)
+                     (parser-error-name condition)
                      (stream-error-stream condition)))))
 
 (defun error-failure (failure)
   "Signal an error depending on the given failure."
-  (error 'parser-expected-element
+  (error 'parser-error
          :name (failure-name failure)
          :stream (failure-stream failure)))
 
@@ -127,11 +127,11 @@
 
 ;; Internal helper macros
 
-(defmacro with-just (form (&optional value) &body body)
+(defmacro with-just (form (&optional var) &body body)
   (once-only (form)
     `(etypecase ,form
-       (just ,(if value
-                  `(let ((,value (just-value ,form)))
+       (just ,(if var
+                  `(let ((,var (just-value ,form)))
                      ,@body)
                   `(progn ,@body)))
        (failure ,form))))
