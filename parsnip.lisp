@@ -253,7 +253,7 @@
     (do ((parsers-left parsers (rest parsers-left))
          expected-elements)
         ((null parsers-left)
-         (expected expected-elements stream nil))
+         (expected (nreverse expected-elements) stream nil))
         (let ((result (funcall (first parsers-left) stream)))
           (if (or (just-p result)
                   (failure-consumed-chars result))
