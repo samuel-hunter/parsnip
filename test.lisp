@@ -16,6 +16,11 @@
   (with-input-from-string (stream string)
     (parse parser stream)))
 
+(defun capture-parse-error (parser string)
+  (multiple-value-bind (always-nil err) (ignore-errors (parse-string parser string))
+    (declare (ignore always-nil))
+    err))
+
 (defun close-enough (float-1 float-2)
   "Return whether two decimal numbers are within tolerance (0.05%)"
   (when (zerop (+ float-1 float-2))
@@ -40,7 +45,11 @@
           'parser-error)
 
     (fail (parse-string parser "")
-          'parser-error)))
+          'parser-error)
+
+    (is char= #\a
+        (parser-error-element
+          (capture-parse-error parser "z")))))
 
 (define-test predicate-parser
   (let ((parser (predicate-parser #'digit-char-p)))
@@ -57,7 +66,11 @@
           'parser-error)
 
     (fail (parse-string parser "")
-          'parser-error)))
+          'parser-error)
+
+    (is eq #'digit-char-p
+        (parser-error-element
+          (capture-parse-error parser "z")))))
 
 (define-test string-parser
   (let ((parser (string-parser "foo")))
@@ -74,18 +87,20 @@
           'parser-error)
 
     (fail (parse-string parser "")
-          'parser-error)))
+          'parser-error)
+
+    (is string= "foo"
+        (parser-error-element
+          (capture-parse-error parser "bar")))))
 
 (define-test parser-error
   :depends-on (char-parser)
-  (let ((parser (char-parser #\a)))
-    (multiple-value-bind (_ err) (ignore-errors (parse-string parser "z"))
-      (declare (ignore _))
+  (let* ((parser (char-parser #\a))
+         (err (capture-parse-error parser "z")))
+    (is equal #\a
+        (parser-error-element err))
 
-      (is equal #\a
-          (parser-error-element err))
-
-      (of-type stream (stream-error-stream err)))))
+    (of-type stream (stream-error-stream err))))
 
 (define-test eof-parser
   (let ((parser (eof-parser)))
@@ -93,7 +108,11 @@
         (parse-string parser ""))
 
     (fail (parse-string parser "foo")
-          'parser-error))
+          'parser-error)
+
+    (is eq :eof
+        (parser-error-element
+          (capture-parse-error parser "foo"))))
 
   (is eq :eof
       (parse-string (eof-parser :eof) "")))
@@ -105,8 +124,12 @@
     (is = #.(char-code #\a)
         (parse-string parser "a"))
 
-    (fail (parse-string parser "b")
-          'parser-error)))
+    (fail (parse-string parser "z")
+          'parser-error)
+
+    (is char= #\a
+        (parser-error-element
+          (capture-parse-error parser "z")))))
 
 (define-test parse-progn
   :depends-on (char-parser)
@@ -177,8 +200,19 @@
     (fail (parse-string abc "abz")
           'parser-error)
 
+    (is char= #\c
+        (parser-error-element
+          (capture-parse-error abc "abz")))
+
     (fail (parse-string abc "az")
           'parser-error)
+
+    (fail (parse-string abc "z")
+          'parser-error)
+
+    (is char= #\a
+        (parser-error-element
+          (capture-parse-error abc "z")))
 
     (fail (parse-string abc "bc")
           'parser-error)
@@ -239,7 +273,11 @@
         (parse-string abc "c"))
 
     (fail (parse-string abc "z")
-          'parser-error))
+          'parser-error)
+
+    (is equal '(#\a #\b #\c)
+        (parser-error-element
+          (capture-parse-error abc "z"))))
 
   (let ((foobar (parse-any (string-parser "foo")
                            (string-parser "bar"))))
@@ -387,11 +425,9 @@
     (is char= #\a
         (parse-string parser "a"))
 
-    (multiple-value-bind (_ err) (ignore-errors (parse-string parser "z"))
-      (declare (ignore _))
-
-      (is eq :the-letter-a
-          (parser-error-element err)))))
+    (is eq :the-letter-a
+        (parser-error-element
+          (capture-parse-error parser "z")))))
 
 (define-test parse-let
   :depends-on (predicate-parser)
