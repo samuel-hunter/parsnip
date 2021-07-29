@@ -204,9 +204,12 @@
     *number*
     *string*))
 
-;; text := ws value ws
+;; text := ws value ws EOF
 (defparameter *text*
-  (trim-ws #'value))
+  (prog2 *whitespace*
+         #'value
+         *whitespace*
+         (eof-parser)))
 
 
 

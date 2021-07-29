@@ -20,6 +20,7 @@
            #:char-parser
            #:predicate-parser
            #:string-parser
+           #:eof-parser
 
            #:parse-map
 
@@ -51,21 +52,9 @@
                  (:copier nil))
   value)
 
-(defstruct (failure (:constructor nil)
-                    (:copier nil)
+(defstruct (failure (:constructor expected (name stream consumed-chars))
                     (:print-function nil))
-  stream consumed-chars)
-
-(defstruct (expected (:constructor expected (name stream consumed-chars))
-                     (:include failure)
-                     (:copier nil)
-                     (:predicate nil))
-  name)
-
-(defstruct (eof (:constructor eof (stream consumed-chars))
-                (:include failure)
-                (:copier nil)
-                (:predicate nil)))
+  name stream consumed-chars)
 
 (define-condition parser-expected-element (stream-error)
   ((element-name :initarg :name :reader parser-element-name))
@@ -76,12 +65,9 @@
 
 (defun error-failure (failure)
   "Signal an error depending on the given failure."
-  (etypecase failure
-    (expected (error 'parser-expected-element
-                     :stream (failure-stream failure)
-                     :element-name (expected-name failure)))
-    (eof (error 'end-of-file
-                :stream (failure-stream failure)))))
+  (error 'parser-expected-element
+         :name (failure-name failure)
+         :stream (failure-stream failure)))
 
 (defun parse (parser stream)
   "Run a parser through a given stream and raise any failures as a condition."
@@ -100,7 +86,8 @@
   (lambda (stream)
     (let ((actual-char (peek-char nil stream nil)))
       (cond
-        ((null actual-char) (eof stream nil))
+        ((null actual-char)
+         (expected char stream nil))
         ((char= char actual-char)
          (just (read-char stream)))
         (t (expected char stream nil))))))
@@ -111,7 +98,8 @@
   (lambda (stream)
     (let ((actual-char (peek-char nil stream nil)))
       (cond
-        ((null actual-char) (eof stream nil))
+        ((null actual-char)
+         (expected predicate stream nil))
         ((funcall predicate actual-char)
          (just (read-char stream)))
         (t (expected predicate stream nil))))))
@@ -124,10 +112,16 @@
            (chars-read (read-sequence actual-string stream)))
       (cond
         ((< chars-read (length string))
-         (eof stream (plusp chars-read)))
+         (expected string stream (plusp chars-read)))
         ((string= actual-string string)
          (just actual-string))
-        (t (expected string stream t))))))
+        (t (expected string stream (plusp chars-read)))))))
+
+(defun eof-parser (&optional value)
+  (lambda (stream)
+    (if (null (peek-char nil stream nil))
+        (just value)
+        (expected :eof stream nil))))
 
 
 
@@ -288,9 +282,9 @@
   (lambda (stream)
     (let ((result (funcall parser stream)))
       (etypecase result
-        (expected (progn (setf (expected-name result) name)
+        (failure (progn (setf (failure-name result) name)
                          result))
-        ((or just failure) result)))))
+        (just result)))))
 
 (defmacro parse-let (bindings &body body)
   "Compose multiple parsers together to bind their results to variables and

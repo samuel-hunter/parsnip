@@ -40,7 +40,7 @@
           'parser-expected-element)
 
     (fail (parse-string parser "")
-          'end-of-file)))
+          'parser-expected-element)))
 
 (define-test predicate-parser
   (let ((parser (predicate-parser #'digit-char-p)))
@@ -57,7 +57,7 @@
           'parser-expected-element)
 
     (fail (parse-string parser "")
-          'end-of-file)))
+          'parser-expected-element)))
 
 (define-test string-parser
   (let ((parser (string-parser "foo")))
@@ -71,10 +71,21 @@
           'parser-expected-element)
 
     (fail (parse-string parser "fo")
-          'end-of-file)
+          'parser-expected-element)
 
     (fail (parse-string parser "")
-          'end-of-file)))
+          'parser-expected-element)))
+
+(define-test eof-parser
+  (let ((parser (eof-parser)))
+    (is eq nil
+        (parse-string parser ""))
+
+    (fail (parse-string parser "foo")
+          'parser-expected-element))
+
+  (is eq :eof
+      (parse-string (eof-parser :eof) "")))
 
 (define-test parse-map
   :depends-on (char-parser)
@@ -286,7 +297,7 @@
         (parse-string parser "abc"))
 
     (fail (parse-string parser "")
-          'end-of-file))
+          'parser-expected-element))
 
   (let ((foos (parse-collect (string-parser "foo"))))
     (is equal '("foo" "foo" "foo")
@@ -343,7 +354,7 @@
           'parser-expected-element)
 
     (fail (parse-string letters "ab")
-          'end-of-file)))
+          'parser-expected-element)))
 
 (define-test parse-try
   :depends-on (string-parser parse-any)
