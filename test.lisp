@@ -83,7 +83,7 @@
       (declare (ignore _))
 
       (is equal #\a
-          (parser-error-name err))
+          (parser-error-element err))
 
       (of-type stream (stream-error-stream err)))))
 
@@ -381,9 +381,9 @@
     (is string= "bar"
         (parse-string foo-or-bar "bar"))))
 
-(define-test parse-name
+(define-test parse-tag
   :depends-on (parser-error char-parser)
-  (let ((parser (parse-name :the-letter-a (char-parser #\a))))
+  (let ((parser (parse-tag :the-letter-a (char-parser #\a))))
     (is char= #\a
         (parse-string parser "a"))
 
@@ -391,7 +391,7 @@
       (declare (ignore _))
 
       (is eq :the-letter-a
-          (parser-error-name err)))))
+          (parser-error-element err)))))
 
 (define-test parse-let
   :depends-on (predicate-parser)

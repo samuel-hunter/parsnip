@@ -14,7 +14,7 @@
                 #:rcurry
                 #:compose)
   (:export #:parser-error
-           #:parser-error-name
+           #:parser-error-element
            #:parse
 
            #:char-parser
@@ -38,7 +38,7 @@
            #:parse-take
 
            #:parse-try
-           #:parse-name
+           #:parse-tag
 
            #:parse-let
            #:parse-defer
@@ -52,21 +52,21 @@
                  (:copier nil))
   value)
 
-(defstruct (failure (:constructor expected (name stream consumed-chars))
+(defstruct (failure (:constructor expected (element stream consumed-chars))
                     (:print-function nil))
-  name stream consumed-chars)
+  element stream consumed-chars)
 
 (define-condition parser-error (stream-error)
-  ((element-name :initarg :name :reader parser-error-name))
+  ((element :initarg :element :reader parser-error-element))
   (:report (lambda (condition stream)
              (format stream "Expected element ~S on ~S"
-                     (parser-error-name condition)
+                     (parser-error-element condition)
                      (stream-error-stream condition)))))
 
 (defun error-failure (failure)
   "Signal an error depending on the given failure."
   (error 'parser-error
-         :name (failure-name failure)
+         :element (failure-element failure)
          :stream (failure-stream failure)))
 
 (defun parse (parser stream)
@@ -250,13 +250,15 @@
    Fails with a list of expected values if all parsers are exhausted.
    Fails when a failing parser consumes input."
   (lambda (stream)
-    (do ((parsers-left parsers (rest parsers-left)))
+    (do ((parsers-left parsers (rest parsers-left))
+         expected-elements)
         ((null parsers-left)
-         (expected parsers stream nil))
+         (expected expected-elements stream nil))
         (let ((result (funcall (first parsers-left) stream)))
-          (when (or (just-p result)
-                    (failure-consumed-chars result))
-            (return result))))))
+          (if (or (just-p result)
+                  (failure-consumed-chars result))
+            (return result)
+            (push (failure-element result) expected-elements))))))
 
 (defun parse-optional (parser &optional default)
   "Enhance the parser to resume from an error with a default value if it did
@@ -277,12 +279,12 @@
         (setf (failure-consumed-chars result) nil))
       result)))
 
-(defun parse-name (name parser)
-  "Maps failures expecting an element to provide the given element's name."
+(defun parse-tag (tag parser)
+  "Reports failures as expecting the given tag instead of an element"
   (lambda (stream)
     (let ((result (funcall parser stream)))
       (etypecase result
-        (failure (progn (setf (failure-name result) name)
+        (failure (progn (setf (failure-element result) tag)
                          result))
         (just result)))))
 
