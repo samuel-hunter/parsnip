@@ -31,7 +31,7 @@ Most everything else (quickstart documentation, benchmarking) can now follow.
 - [ ] Documentation
   - [ ] Code examples with real formats
     - [X] JSON
-    - [ ] Some C-family programming language
+    - [x] Some C-family programming language
     - [ ] Lay down structure for `cl-abc2` project to link
   - [x] Docstrings in all external functions and macros
   - [x] Quickstart within the README
@@ -117,6 +117,8 @@ The [test suite](./test.lisp) shows how each function works, and how it's expect
 The [JSON example](./examples/json.lisp) matches extremely close to the grammar notation of the [RFC8259 JSON specification](https://datatracker.ietf.org/doc/html/rfc8259).
 Outside of a couple outliers (the value grammar is moved to the end), the code is laid out nearly section-by-section as stated in the RFC.
 
+The [Tiny C example](./examples/tiny-c.lisp) demonstrates an extremely stripped down version of C with no types and little control structures.
+It is meant to show a very small yet turing-complete C-family language.
+
 I plan to be writing a parser for [ABC notation v2.1](http://abcnotation.com/wiki/abc:standard:v2.1) after I feel reasonabily finished with this project.
 
-TODO I would like to demonstrate a C-family programming language being parsed in the future.
