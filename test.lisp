@@ -369,27 +369,6 @@
     (is = 0
         (parse-string number-parser ""))))
 
-(define-test parse-do
-  :depends-on (char-parser parse-progn)
-  (let* ((spaces (parse-do (char-parser #\Space)))
-         (letter (parse-progn spaces
-                              (char-parser #\a))))
-    (is eq nil
-        (parse-string spaces "   "))
-
-    (is eq nil
-        (parse-string spaces "   1"))
-
-    (is eq nil
-        (parse-string spaces ""))
-
-    (is eq :foo
-        (parse-string (parse-do (char-parser #\Space) :foo)
-                      "   "))
-
-    (is eq #\a
-        (parse-string letter "   a"))))
-
 (define-test parse-take
   :depends-on (predicate-parser)
   (let ((letters (parse-take 3 (predicate-parser #'alpha-char-p))))

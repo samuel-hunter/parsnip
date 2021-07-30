@@ -34,7 +34,6 @@
            #:parse-collect
            #:parse-collect1
            #:parse-reduce
-           #:parse-do
            #:parse-take
 
            #:parse-try
@@ -218,14 +217,6 @@
         ((failure-p result)
          (with-failure result ()
            (just value))))))
-
-(defun parse-do (parser &optional value)
-  "Enhance the parser to keep running until it reaches failure. Returns the
-   faliure only if the containing parser consums input during failure."
-  (lambda (stream)
-    (do ((result (funcall parser stream) (funcall parser stream)))
-        ((failure-p result)
-         (with-failure result () (just value))))))
 
 (defun parse-take (times parser)
   "Enhance the parser to run a given number of times and collect the results.
