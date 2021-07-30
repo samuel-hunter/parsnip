@@ -24,8 +24,9 @@
 
 ;; whitespace := ( space | tab | newline | return )*
 (defparameter *whitespace*
-  (parse-do (charbag-parser
-              '(#\Space #\Tab #\Newline #\Return))))
+  (parse-reduce (constantly nil)
+                (charbag-parser '(#\Space #\Tab #\Newline #\Return))
+                nil))
 
 (defun trim-ws (parser)
   (parse-prog2 *whitespace* parser *whitespace*))
