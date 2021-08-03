@@ -15,6 +15,7 @@
                 #:compose)
   (:export #:parser-error
            #:parser-error-element
+           #:parser-error-return-trace
            #:parse
 
            #:char-parser
@@ -53,10 +54,11 @@
 
 (defstruct (failure (:constructor expected (element stream partially-parsed))
                     (:print-function nil))
-  element stream partially-parsed)
+  element stream partially-parsed return-trace)
 
 (define-condition parser-error (stream-error)
-  ((element :initarg :element :reader parser-error-element))
+  ((element :initarg :element :reader parser-error-element)
+   (return-trace :initarg :return-trace :reader parser-error-return-trace))
   (:report (lambda (condition stream)
              (format stream "Expected element ~S on ~S"
                      (parser-error-element condition)
@@ -142,6 +144,15 @@
                     ,form
                     (progn ,@body))))))
 
+(defmacro with-trace ((name) &body body)
+  (with-gensyms (result)
+    `(let ((,result (progn ,@body)))
+       (etypecase ,result
+         (just ,result)
+         (failure (progn
+                    (push (quote ,name) (failure-return-trace ,result))
+                    ,result))))))
+
 
 
 ;; Combinators
@@ -153,8 +164,8 @@
       (just (funcall function value)))))
 
 (defun parse-progn (&rest parsers)
-  "Compose multiple parsers to run them in sequence, returning the last
-   parser's value."
+  "Compose multiple parsers to run in sequence, returning the last parser's
+   value."
   (assert (plusp (length parsers)))
   (lambda (stream)
     (do* ((parsers-left parsers (rest parsers-left))
@@ -165,8 +176,8 @@
         (return result)))))
 
 (defun parse-prog1 (first-parser &rest parsers)
-  "Compose multiple parsers to run them in sequence, returning the first
-   parser's value."
+  "Compose multiple parsers to run in sequence, returning the first parser's
+   value."
   (when (null parsers)
     (return-from parse-prog1 first-parser))
 
@@ -178,8 +189,8 @@
             first-result))))))
 
 (defun parse-prog2 (first-parser second-parser &rest parsers)
-  "Compose multple parsers to run them in sequence, returning the second
-   parser's value."
+  "Compose multple parsers to run in sequence, returning the second parser's
+   value."
   (parse-progn first-parser (apply 'parse-prog1 second-parser parsers)))
 
 (defun parse-collect (parser)
@@ -291,4 +302,5 @@
    Enables other parsers to forward-reference it before it is defined."
   (with-gensyms (stream)
     `(defun ,name (,stream)
-       (funcall (progn ,@body) ,stream))))
+       (with-trace (,name)
+         (funcall (progn ,@body) ,stream)))))
