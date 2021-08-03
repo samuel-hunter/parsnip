@@ -15,11 +15,9 @@ Most everything else (quickstart documentation, benchmarking) can now follow.
 
 - [ ] The external API is stable, including primitive parsers and parser combinators
   - [x] All parsers are limited to a non-seeking stream with a 1-character peek buffer (outside `parse-try`)
-  - [ ] Some robust way to figure out parser debugging.
-  	The current failure mechanism makes a condition on error and passes it as a value.
-	This might be good enough for error handling, but stack traces don't give enough information about what went wrong.
-	Maybe failures could build up a return trace a la [Zig](https://ziglang.org/documentation/master/#Error-Return-Traces).
-	I should program some example error reporting to showcase.
+  - [x] Some robust way to figure out parser debugging.
+  	I've decided to go for return traces during failures. It seems to work pretty well!
+  - [ ] Parselets for common idioms (like digits and numbers).
 - [ ] Code tests
   - [x] Every external function is unit-tested.
   - [x] 95% code coverage in `parsnip.lisp` as reported by `sb-cover`.
@@ -28,14 +26,13 @@ Most everything else (quickstart documentation, benchmarking) can now follow.
         I don't plan for this library to be the fastest, but it shouldn't be snailing either.
 	The current speed of the JSON example is about 2.25x slower than cl-json.
 	This is very close to my target of being only twice as slow.
-- [ ] Documentation
-  - [ ] Code examples with real formats
+- [x] Documentation
+  - [x] Code examples with real formats
     - [X] JSON
     - [x] Some C-family programming language
-    - [ ] Lay down structure for `cl-abc2` project to link
   - [x] Docstrings in all external functions and macros
   - [x] Quickstart within the README
-  - [ ] A full reference somewhere, maybe within the README
+  - [x] A full reference somewhere, maybe within the README
 - [ ] Peer review. I need more than myself looking at the project. Many eyes are welcome :)
 - [x] A nice drawing of a parsnip :)
 
@@ -108,9 +105,7 @@ You can use `defparser` to define a parser as a function, enabling forward-refer
 	     *keyword*))
 ```
 
-## Reference
-
-The [test suite](./test.lisp) shows how each function works, and how it's expected to perform
+The [test suite](./test.lisp) shows how each function works, and how it's expected to perform.
 
 ## Examples
 
@@ -120,5 +115,80 @@ Outside of a couple outliers (the value grammar is moved to the end), the code i
 The [Tiny C example](./examples/tiny-c.lisp) demonstrates an extremely stripped down version of C with no types and little control structures.
 It is meant to show a very small yet turing-complete C-family language.
 
-I plan to be writing a parser for [ABC notation v2.1](http://abcnotation.com/wiki/abc:standard:v2.1) after I feel reasonabily finished with this project.
+I plan to be writing a parser for [ABC notation v2.1](http://abcnotation.com/wiki/abc:standard:v2.1) after I feel reasonably finished with this project.
 
+## Full Reference
+
+The library provides parsers and parser combinators.
+Parsers accept character input and return some value.
+Parser combinators take in parsers and return other parsers with enhanced behavior, like parsing multiple times or returning a different result.
+
+Parsers may fail, but unless it was partially parsed, some parser combinators like `parse-optional` or `parse-many` recover.
+
+### Parselets
+
+Parselets are primitive parsers meant to be building blocks for greater parsers:
+
+**char-parser** *char* - Return a parser that accepts the given character value.
+
+**predicate-parser** *predicate* - Return a parser that accepts the character if, applied to the provided predicate, the predicate returns true.
+
+**string-parser** *string* - Return a parser that accepts the given string value. May partially parse on failure.
+
+**eof-parser** *value* - Return a parser that accepts the end of a file and returns the given value.
+
+### Parser Combinators
+
+Parser combinators take in one or more parsers and return a parser with enhanced behavior:
+
+**parse-map** *parser* *function* - Enhance the parser to apply any return value to the given mapping function.
+
+**parse-progn** *&optional* *parsers* - Compose multiple parsers to run in sequence, returning the last parser's value.
+
+**parse-prog1** *&rest* *parsers* - Compose multiple parsers to run in sequence, returning the first parser's value.
+
+**parse-prog2** *&rest* *parsers* - Compose multiple parsers to run in sequence, returning the second parser's value.
+
+**parse-collect** *parser* - Enhance the parser to keep running and collect results until failure.
+
+**parse-collect1** *parser* - Enhance the parser to keep running and collect at least one result until failure.
+
+**parse-reduce** *function* *parser* *initial-value* - Enhance the parser to keep running and reduce all results into a single value until failure.
+
+**parse-take** *times* *parser* - Enhance the parser to keep running and collect EXACTLY the given number of times.
+
+**parse-any** *&rest* *parsers* - Attempts each given parser in order until one succeeds.
+
+**parse-optional** *&rest* *parsers* - Enhance the parser to resume from a failure with a default value.
+
+**parse-try** *parser* - Enhance the parser to try to rewind the stream on any partial-parse failure.
+Only works on seekable streams, and is the only parser that can recover from partial-parse failures.
+
+**parse-tag** *tag* *parser* - Enhance the parser's failures to report expecting the given tag instead of an element.
+
+### Parser Macros
+
+**parse-let** *bindings* *&body* *body* - Compose multiple parsers together to bind their results to variables and return a value within the body:
+
+```lisp
+(defparameter *id-parser*
+  (parse-let ((letter (predicate-parser #'alpha-char-p))
+              (digits (parse-collect1 (predicate-parser #'digit-char-p))))
+    (make-instance 'identifier :letter letter
+                               :number (parse-integer (coerce digits 'string)))))
+```
+
+**parse-defer** *form* - Return a parser that defers evaluating itself until it is called.
+
+**defparser** *name* *()* *&body* *body* - Define a parser as a function.
+
+```lisp
+(defparser alpha-parser ()
+  (predicate-parser #'alpha-char-p))
+
+(defparser id-parser ()
+  (parse-let ((letter #'alpha-parser)
+              (digits (parse-collect1 (predicate-parser #'digit-char-p))))
+    (make-instance 'identifier :letter letter
+                               :number (parse-integer (coerce digits 'string)))))
+```
