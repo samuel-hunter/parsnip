@@ -81,11 +81,11 @@
 
 ;; char := unescaped | '\' char-code
 (defparameter *char*
-  (parse-any (parse-progn (char-parser #\\)
-                          (parse-any
-                            *char-code*
-                            *unicode-char*))
-             (predicate-parser (lambda (c) (not (char= c #\"))))))
+  (parse-or (parse-progn (char-parser #\\)
+                         (parse-or
+                           *char-code*
+                           *unicode-char*))
+            (predicate-parser (lambda (c) (not (char= c #\"))))))
 
 ;; string := quotation char+ quotation
 
@@ -185,7 +185,7 @@
 
 ;; value := 'false' | 'null' | 'true' | object | array | number | string
 (defparser value ()
-  (parse-any
+  (parse-or
     (literal-parser #\f "alse" :false)
     (literal-parser #\n "ull" :null)
     (literal-parser #\t "rue" :true)

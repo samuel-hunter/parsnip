@@ -61,10 +61,10 @@
 
 ;; stmt := block-stmt | expr-stmt | branch-stmt | return-stmt
 (defparser stmt ()
-  (parse-any #'block-stmt
-             #'branch-stmt
-             #'return-stmt
-             #'expr-stmt))
+  (parse-or #'block-stmt
+            #'branch-stmt
+            #'return-stmt
+            #'expr-stmt))
 
 ;; block-stmt := '{' stmt* '}'
 (defparser block-stmt ()
@@ -112,19 +112,19 @@
 
 ;; primary-expr := '(' expr ')' | integer | ident [ '(' args ')' ]
 (defparser primary-expr ()
-  (parse-any (wrap-parens #'expr)
-             (integer-parser)
-             (parse-let ((name *ident*)
-                         (call-args (parse-optional (wrap-parens #'args))))
-               (if call-args
-                   (list :call-expr name call-args)
-                   name))))
+  (parse-or (wrap-parens #'expr)
+            (integer-parser)
+            (parse-let ((name *ident*)
+                        (call-args (parse-optional (wrap-parens #'args))))
+              (if call-args
+                  (list :call-expr name call-args)
+                  name))))
 
 ;; mul-op := '*' | '/' | '%'
 (defparameter *mul-op*
-  (parse-any (wrap-ws (char-parser #\*))
-             (wrap-ws (char-parser #\/))
-             (wrap-ws (char-parser #\%))))
+  (parse-or (wrap-ws (char-parser #\*))
+            (wrap-ws (char-parser #\/))
+            (wrap-ws (char-parser #\%))))
 
 ;; mul-expr := primary-expr [ mul-op mul-expr ]
 (defparser mul-expr ()
@@ -139,8 +139,8 @@
 
 ;; add-op := '+' | '-'
 (defparameter *add-op*
-  (parse-any (wrap-ws (char-parser #\+))
-             (wrap-ws (char-parser #\-))))
+  (parse-or (wrap-ws (char-parser #\+))
+            (wrap-ws (char-parser #\-))))
 
 ;; add-expr := primary-expr [ add-op add-expr ]
 (defparser add-expr ()
@@ -155,8 +155,8 @@
 
 ;; cmp-op := '==' | '!='
 (defparameter *cmp-op*
-  (parse-any (parse-try (wrap-ws (string-parser "==")))
-             (parse-try (wrap-ws (string-parser "!=")))))
+  (parse-or (parse-try (wrap-ws (string-parser "==")))
+            (parse-try (wrap-ws (string-parser "!=")))))
 
 ;; cmp-expr := primary-expr [ cmp-op cmp-expr ]
 (defparser cmp-expr ()
