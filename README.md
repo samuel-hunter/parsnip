@@ -17,7 +17,7 @@ Most everything else (quickstart documentation, benchmarking) can now follow.
   - [x] All parsers are limited to a non-seeking stream with a 1-character peek buffer (outside `parse-try`)
   - [x] Some robust way to figure out parser debugging.
   	I've decided to go for return traces during failures. It seems to work pretty well!
-  - [ ] Parselets for common idioms (like digits and numbers).
+  - [x] Parselets for common idioms (like digits and numbers).
 - [ ] Code tests
   - [x] Every external function is unit-tested.
   - [x] 95% code coverage in `parsnip.lisp` as reported by `sb-cover`.
@@ -127,7 +127,7 @@ Parsers may fail, but unless it was partially parsed, some parser combinators li
 
 ### Parselets
 
-Parselets are primitive parsers meant to be building blocks for greater parsers:
+Parselets are parsers meant to be building blocks for greater parsers:
 
 **char-parser** *char* - Return a parser that accepts the given character value.
 
@@ -137,38 +137,44 @@ Parselets are primitive parsers meant to be building blocks for greater parsers:
 
 **eof-parser** *value* - Return a parser that accepts the end of a file and returns the given value.
 
+Non-promitive parselets include:
+
+**digit-parser** *&optional (radix 10)* - Return a parser that accepts a digit and returns its number value.
+
+**integer-parser** *&optional (radix 10)* - Return a parser that accepts a series of digits and returns its number value.
+
 ### Parser Combinators
 
 Parser combinators take in one or more parsers and return a parser with enhanced behavior:
 
-**parse-map** *parser* *function* - Enhance the parser to apply any return value to the given mapping function.
+**parse-map** *parser function* - Enhance the parser to apply any return value to the given mapping function.
 
-**parse-progn** *&optional* *parsers* - Compose multiple parsers to run in sequence, returning the last parser's value.
+**parse-progn** *&optional parsers* - Compose multiple parsers to run in sequence, returning the last parser's value.
 
-**parse-prog1** *&rest* *parsers* - Compose multiple parsers to run in sequence, returning the first parser's value.
+**parse-prog1** *&rest parsers* - Compose multiple parsers to run in sequence, returning the first parser's value.
 
-**parse-prog2** *&rest* *parsers* - Compose multiple parsers to run in sequence, returning the second parser's value.
+**parse-prog2** *&rest parsers* - Compose multiple parsers to run in sequence, returning the second parser's value.
 
 **parse-collect** *parser* - Enhance the parser to keep running and collect results until failure.
 
 **parse-collect1** *parser* - Enhance the parser to keep running and collect at least one result until failure.
 
-**parse-reduce** *function* *parser* *initial-value* - Enhance the parser to keep running and reduce all results into a single value until failure.
+**parse-reduce** *function parser initial-value* - Enhance the parser to keep running and reduce all results into a single value until failure.
 
-**parse-take** *times* *parser* - Enhance the parser to keep running and collect EXACTLY the given number of times.
+**parse-take** *times parser* - Enhance the parser to keep running and collect EXACTLY the given number of times.
 
-**parse-any** *&rest* *parsers* - Attempts each given parser in order until one succeeds.
+**parse-any** *&rest parsers* - Attempts each given parser in order until one succeeds.
 
-**parse-optional** *&rest* *parsers* - Enhance the parser to resume from a failure with a default value.
+**parse-optional** *&rest parsers* - Enhance the parser to resume from a failure with a default value.
 
 **parse-try** *parser* - Enhance the parser to try to rewind the stream on any partial-parse failure.
 Only works on seekable streams, and is the only parser that can recover from partial-parse failures.
 
-**parse-tag** *tag* *parser* - Enhance the parser's failures to report expecting the given tag instead of an element.
+**parse-tag** *tag parser* - Enhance the parser's failures to report expecting the given tag instead of an element.
 
 ### Parser Macros
 
-**parse-let** *bindings* *&body* *body* - Compose multiple parsers together to bind their results to variables and return a value within the body:
+**parse-let** *bindings &body body* - Compose multiple parsers together to bind their results to variables and return a value within the body:
 
 ```lisp
 (defparameter *id-parser*
@@ -180,7 +186,7 @@ Only works on seekable streams, and is the only parser that can recover from par
 
 **parse-defer** *form* - Return a parser that defers evaluating itself until it is called.
 
-**defparser** *name* *()* *&body* *body* - Define a parser as a function.
+**defparser** *name () &body body* - Define a parser as a function.
 
 ```lisp
 (defparser alpha-parser ()

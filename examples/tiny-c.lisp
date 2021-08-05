@@ -16,9 +16,6 @@
 (defparameter *alpha*
   (parse-tag :alpha-char (predicate-parser #'alpha-char-p)))
 
-(defparameter *digit*
-  (parse-tag :digit (predicate-parser #'digit-char-p)))
-
 (defparameter *alnum*
   (parse-tag :alphanumeric-char (predicate-parser #'alphanumericp)))
 
@@ -59,11 +56,6 @@
   (parse-let ((head-char *alpha*)
               (tail-chars (parse-collect *alnum*)))
     (coerce (list* head-char tail-chars) 'string)))
-
-;; int := digit+
-(defparameter *integer*
-  (parse-map (parse-collect1 *digit*)
-             (lambda (digits) (parse-integer (coerce digits 'string)))))
 
 
 
@@ -121,7 +113,7 @@
 ;; primary-expr := '(' expr ')' | integer | ident [ '(' args ')' ]
 (defparser primary-expr ()
   (parse-any (wrap-parens #'expr)
-             *integer*
+             (integer-parser)
              (parse-let ((name *ident*)
                          (call-args (parse-optional (wrap-parens #'args))))
                (if call-args
