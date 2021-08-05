@@ -69,16 +69,16 @@
 ;; block-stmt := '{' stmt* '}'
 (defparser block-stmt ()
   (wrap-braces
-    (parse-map (parse-collect #'stmt)
-               (lambda (stmts)
-                 (list :block-stmt stmts)))))
+    (parse-map (lambda (stmts)
+                 (list :block-stmt stmts))
+               (parse-collect #'stmt))))
 
 ;; expr-stmt := expr ';'
 (defparser expr-stmt ()
-  (parse-map (parse-prog1 (parse-try #'expr)
-                          *statement-end*)
-             (lambda (expr)
-               (list :expr-stmt expr))))
+  (parse-map (lambda (expr)
+               (list :expr-stmt expr))
+             (parse-prog1 (parse-try #'expr)
+                          *statement-end*)))
 
 ;; branch-stmt := 'if' '(' expr ')' stmt [ 'else' stmt ]
 (defparser branch-stmt ()
@@ -93,11 +93,11 @@
 ;; return-stmt := 'return' expr ';'
 (defparser return-stmt ()
   (parse-map
+    (lambda (expr)
+      (list :return-stmt expr))
     (parse-prog2 (parse-try *return*)
                  #'expr
-                 *statement-end*)
-    (lambda (expr)
-      (list :return-stmt expr))))
+                 *statement-end*)))
 
 
 

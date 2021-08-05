@@ -73,11 +73,11 @@
 (defparameter *unicode-char*
   (parse-progn (char-parser #\u)
                (parse-map
-                 (parse-take 4 (digit-parser 16))
                  (lambda (digits)
                    (code-char
                      (reduce (lambda (num dig) (+ (* 16 num) dig))
-                             digits))))))
+                             digits)))
+                 (parse-take 4 (digit-parser 16)))))
 
 ;; char := unescaped | '\' char-code
 (defparameter *char*
@@ -179,9 +179,9 @@
   ;; Separate the starting char and remaining name so that the parser can peek
   ;; at a single char before reading the rest of the name. Possible since every
   ;; literal has a unique character (f, n, t).
-  (parse-map (parse-progn (char-parser start)
-                          (string-parser remaining-name))
-             (constantly value)))
+  (parse-map (constantly value)
+             (parse-progn (char-parser start)
+                          (string-parser remaining-name))))
 
 ;; value := 'false' | 'null' | 'true' | object | array | number | string
 (defparser value ()

@@ -119,8 +119,8 @@
 
 (define-test parse-map
   :depends-on (char-parser)
-  (let ((parser (parse-map (char-parser #\a)
-                           #'char-code)))
+  (let ((parser (parse-map #'char-code
+                           (char-parser #\a))))
     (is = #.(char-code #\a)
         (parse-string parser "a"))
 
@@ -129,7 +129,16 @@
 
     (is char= #\a
         (parser-error-element
-          (capture-parse-error parser "z")))))
+          (capture-parse-error parser "z"))))
+
+  (let ((parser (parse-map #'list
+                           (char-parser #\a)
+                           (char-parser #\b))))
+    (is equal '(#\a #\b)
+        (parse-string parser "ab"))
+
+    (fail (parse-string parser "a")
+          'parser-error)))
 
 (define-test parse-progn
   :depends-on (char-parser)
