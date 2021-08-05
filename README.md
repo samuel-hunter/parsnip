@@ -99,10 +99,10 @@ You can use `defparser` to define a parser as a function, enabling forward-refer
 
 ;; value := list | number | symbol | keyword
 (defparser value
-  (parse-any *list*
-             *number*
-	     *symbol*
-	     *keyword*))
+  (parse-or *list*
+            *number*
+	    *symbol*
+	    *keyword*))
 ```
 
 The [test suite](./test.lisp) shows how each function works, and how it's expected to perform.
@@ -163,7 +163,7 @@ Parser combinators take in one or more parsers and return a parser with enhanced
 
 **parse-take** *times parser* - Enhance the parser to keep running and collect EXACTLY the given number of times.
 
-**parse-any** *&rest parsers* - Attempts each given parser in order until one succeeds.
+**parse-or** *&rest parsers* - Attempts each given parser in order until one succeeds.
 
 **parse-optional** *&rest parsers* - Enhance the parser to resume from a failure with a default value.
 

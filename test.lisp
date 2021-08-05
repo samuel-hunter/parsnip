@@ -251,18 +251,18 @@
     (fail (parse-string abc "c")
           'parser-error)))
 
-(define-test parse-any
+(define-test parse-or
   :depends-on (char-parser string-parser)
-  (let ((a (parse-any (char-parser #\a))))
+  (let ((a (parse-or (char-parser #\a))))
     (is char= #\a
         (parse-string a "a"))
 
     (fail (parse-string a "z")
           'parser-error))
 
-  (let ((abc (parse-any (char-parser #\a)
-                        (char-parser #\b)
-                        (char-parser #\c))))
+  (let ((abc (parse-or (char-parser #\a)
+                       (char-parser #\b)
+                       (char-parser #\c))))
     (is char= #\a
         (parse-string abc "a"))
 
@@ -279,14 +279,14 @@
         (parser-error-element
           (capture-parse-error abc "z"))))
 
-  (let ((foobar (parse-any (string-parser "foo")
-                           (string-parser "bar"))))
+  (let ((foobar (parse-or (string-parser "foo")
+                          (string-parser "bar"))))
     (is string= "foo"
         (parse-string foobar "foo"))
 
     (fail (parse-string foobar "bar")
           'parser-error
-          "parse-any fails when any input is consumed.")))
+          "parse-or fails early on a partial parse.")))
 
 (define-test parse-optional
   :depends-on (char-parser string-parser)
@@ -385,10 +385,10 @@
           'parser-error)))
 
 (define-test parse-try
-  :depends-on (string-parser parse-any)
+  :depends-on (string-parser parse-or)
   (let* ((try-foo (parse-try (string-parser "foo")))
-         (foo-or-bar (parse-any try-foo
-                                (string-parser "bar"))))
+         (foo-or-bar (parse-or try-foo
+                               (string-parser "bar"))))
     (is string= "foo"
         (parse-string try-foo "foo"))
 

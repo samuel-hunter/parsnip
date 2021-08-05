@@ -29,7 +29,7 @@
            #:parse-prog1
            #:parse-prog2
 
-           #:parse-any
+           #:parse-or
            #:parse-optional
 
            #:parse-collect
@@ -239,7 +239,7 @@
       (with-just (take-iter times stream) (list)
         (just list)))))
 
-(defun parse-any (&rest parsers)
+(defun parse-or (&rest parsers)
   "Attempts each parser in order until one succeeds. Passes through any
    partial-parse failure."
   (lambda (stream)
@@ -250,8 +250,8 @@
         (let ((result (funcall (first parsers-left) stream)))
           (if (or (just-p result)
                   (failure-partially-parsed result))
-            (return result)
-            (push (failure-element result) expected-elements))))))
+              (return result)
+              (push (failure-element result) expected-elements))))))
 
 (defun parse-optional (parser &optional default)
   "Enhance the parser to resume from an error with a default value if it did
@@ -278,7 +278,7 @@
     (let ((result (funcall parser stream)))
       (etypecase result
         (failure (progn (setf (failure-element result) tag)
-                         result))
+                        result))
         (just result)))))
 
 (defmacro parse-let (bindings &body body)
