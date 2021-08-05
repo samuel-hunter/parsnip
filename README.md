@@ -147,7 +147,7 @@ Non-promitive parselets include:
 
 Parser combinators take in one or more parsers and return a parser with enhanced behavior:
 
-**parse-map** *parser function* - Enhance the parser to apply any return value to the given mapping function.
+**parse-map** *function &rest parsers* - Compose multiple parsers to run in sequence, and apply the function to all parsers' values.
 
 **parse-progn** *&optional parsers* - Compose multiple parsers to run in sequence, returning the last parser's value.
 

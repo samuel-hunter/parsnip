@@ -160,11 +160,20 @@
 
 ;; Combinators
 
-(defun parse-map (parser function)
-  "Enhance the parser to apply any return value to the given mapping function."
+(defun parse-map (function &rest parsers)
+  "Compose multiple parsers to run in sequence, and apply the function to all
+   parsers' values."
   (lambda (stream)
-    (with-just (funcall parser stream) (value)
-      (just (funcall function value)))))
+    (do ((parsers* parsers (rest parsers*))
+         (partially-parsed nil t)
+         list)
+        ((null parsers*)
+         (just (apply function (nreverse list))))
+        (let ((result (funcall (first parsers*) stream)))
+          (etypecase result
+            (just (push (just-value result) list))
+            (failure (setf (failure-partially-parsed result) partially-parsed)
+                     (return result)))))))
 
 (defun parse-progn (&rest parsers)
   "Compose multiple parsers to run in sequence, returning the last parser's
@@ -172,10 +181,12 @@
   (assert (plusp (length parsers)))
   (lambda (stream)
     (do* ((parsers-left parsers (rest parsers-left))
+          (partially-parsed nil t)
           result)
       ((null parsers-left) result)
       (setf result (funcall (first parsers-left) stream))
       (when (failure-p result)
+        (setf (failure-partially-parsed result) partially-parsed)
         (return result)))))
 
 (defun parse-prog1 (first-parser &rest parsers)
@@ -188,8 +199,11 @@
     (lambda (stream)
       (let ((first-result (funcall first-parser stream)))
         (with-just first-result ()
-          (with-just (funcall inner-parser stream) ()
-            first-result))))))
+          (let ((final-result (funcall inner-parser stream)))
+            (etypecase final-result
+              (just first-result)
+              (failure (setf (failure-partially-parsed final-result) t)
+                       final-result))))))))
 
 (defun parse-prog2 (first-parser second-parser &rest parsers)
   "Compose multple parsers to run in sequence, returning the second parser's
@@ -314,13 +328,13 @@
 
 (defun digit-parser (&optional (radix 10))
   (check-type radix (integer 2 36))
-  (parse-map (predicate-parser (rcurry #'digit-char-p radix))
-             (lambda (ch)
+  (parse-map (lambda (ch)
                (let ((code (char-code ch)))
                  (if (<= #.(char-code #\0) code #.(char-code #\9))
                      (- code #.(char-code #\0))
-                     (+ 10 (- (char-code (char-upcase ch)) #.(char-code #\A))))))))
+                     (+ 10 (- (char-code (char-upcase ch)) #.(char-code #\A))))))
+             (predicate-parser (rcurry #'digit-char-p radix))))
 
 (defun integer-parser (&optional (radix 10))
-  (parse-map (parse-collect1 (digit-parser radix))
-             (curry #'reduce (lambda (num dig) (+ (* num radix) dig)))))
+  (parse-map (curry #'reduce (lambda (num dig) (+ (* num radix) dig)))
+             (parse-collect1 (digit-parser radix))))
