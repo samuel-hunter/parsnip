@@ -437,6 +437,57 @@
     (is char= #\b
         (parse-string parser "b"))))
 
+(define-test digit-parser
+  (let ((decimalparser (digit-parser))
+        (hexparser (digit-parser 16)))
+    (is = 0
+        (parse-string decimalparser "0"))
+
+    (is = 9
+        (parse-string decimalparser "9"))
+
+    (fail (parse-string decimalparser "A")
+          'parser-error)
+
+    (is = 0
+        (parse-string hexparser "0"))
+
+    (is = 15
+        (parse-string hexparser "F"))
+
+    (is = 15
+        (parse-string hexparser "f"))
+
+    (fail (parse-string hexparser "G")
+          'parser-error)))
+
+(define-test integer-parser
+  (let ((decimalparser (integer-parser))
+        (hexparser (integer-parser 16)))
+    (is = 0
+        (parse-string decimalparser "0"))
+
+    (is = 10
+        (parse-string decimalparser "10"))
+
+    (is = 5
+        (parse-string decimalparser "00005"))
+
+    (is = 123
+        (parse-string decimalparser "123A"))
+
+    (fail (parse-string decimalparser "A")
+          'parser-error)
+
+    (is = 255
+        (parse-string hexparser "FF"))
+
+    (is = 255
+        (parse-string hexparser "ff"))
+
+    (fail (parse-string hexparser "G")
+          'parser-error)))
+
 
 
 ;; JSON Tests

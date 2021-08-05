@@ -42,7 +42,10 @@
 
            #:parse-let
            #:parse-defer
-           #:defparser))
+           #:defparser
+
+           #:digit-parser
+           #:integer-parser))
 
 (in-package #:xyz.shunter.parsnip)
 
@@ -304,3 +307,20 @@
     `(defun ,name (,stream)
        (with-trace (,name)
          (funcall (progn ,@body) ,stream)))))
+
+
+
+;; Complex Parselets
+
+(defun digit-parser (&optional (radix 10))
+  (check-type radix (integer 2 36))
+  (parse-map (predicate-parser (rcurry #'digit-char-p radix))
+             (lambda (ch)
+               (let ((code (char-code ch)))
+                 (if (<= #.(char-code #\0) code #.(char-code #\9))
+                     (- code #.(char-code #\0))
+                     (+ 10 (- (char-code (char-upcase ch)) #.(char-code #\A))))))))
+
+(defun integer-parser (&optional (radix 10))
+  (parse-map (parse-collect1 (digit-parser radix))
+             (curry #'reduce (lambda (num dig) (+ (* num radix) dig)))))

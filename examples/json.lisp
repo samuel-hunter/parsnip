@@ -69,18 +69,15 @@
       (#\r #\Return) ;; r => Carriage return
       (#\t #\Tab)))) ;; t => Horizontal tab
 
-;; hex-digit := [0123456789ABCDEFabcdef]
-(defparameter *hex-digit*
-  (parse-tag :hexadecimal-digit
-             (predicate-parser (rcurry #'digit-char-p 16))))
 
 (defparameter *unicode-char*
   (parse-progn (char-parser #\u)
                (parse-map
-                 (parse-take 4 *hex-digit*)
+                 (parse-take 4 (digit-parser 16))
                  (lambda (digits)
-                   (code-char (parse-integer (coerce digits 'string)
-                                             :radix 16))))))
+                   (code-char
+                     (reduce (lambda (num dig) (+ (* 16 num) dig))
+                             digits))))))
 
 ;; char := unescaped | '\' char-code
 (defparameter *char*
@@ -147,35 +144,27 @@
 
 ;; RFC 8259 § 6. Numbers
 
-;; digit := [0123456789]
-(defparameter *digit*
-  (parse-tag :digit (predicate-parser #'digit-char-p)))
-
-;; int := digit+
-(defparameter *int*
-  (parse-map (parse-collect1 *digit*)
-             (lambda (digits) (parse-integer (coerce digits 'string)))))
-
 ;; frac := '.' int
 (defparameter *frac*
   (parse-progn (char-parser #\.)
-               (parse-let ((digits (parse-collect1 *digit*)))
-                 (/ (parse-integer (coerce digits 'string))
+               (parse-let ((digits (parse-collect1 (digit-parser))))
+                 (/ (reduce (lambda (num dig) (+ (* num 10) dig))
+                            digits)
                     (expt 10 (length digits))))))
 
 ;; exp := 'e' ['+' | '-'] int
 (defparameter *exp*
   (parse-progn (char-parser #\e)
                (parse-let ((sign (parse-optional (charbag-parser "+-") #\+))
-                           (number *int*))
+                           (num (integer-parser)))
                  (* (if (char= sign #\+)
                         1 -1)
-                    number))))
+                    num))))
 
 ;; number := [minus] int [frac] [exp]
 (defparameter *number*
   (parse-let ((sign (parse-optional (char-parser #\-)))
-              (whole-part *int*)
+              (whole-part (integer-parser))
               (frac-part (parse-optional *frac* 0))
               (exp-part (parse-optional *exp* 0)))
     (setf sign (if sign -1 1))
