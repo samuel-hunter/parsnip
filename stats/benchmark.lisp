@@ -39,14 +39,14 @@
 
   (format t "===READING FROM STREAM~%")
   (format t "PARSNIP:~%")
-  (benchmark-stream-decoder #'read-json)
+  (benchmark-stream-decoder #'decode-json)
 
   (format t "~%~%~%CL-JSON:~%")
   (benchmark-stream-decoder #'cl-json:decode-json)
 
   (format t "~%~%~%===READING FROM STRING===~%")
   (format t "PARSNIP:~%")
-  (benchmark-string-decoder #'read-json-from-string)
+  (benchmark-string-decoder #'decode-json-from-string)
 
   (format t "~%~%~%Cl-JSON:~%")
   (benchmark-string-decoder #'cl-json:decode-json-from-string))

@@ -19,7 +19,7 @@
 
 (defun process-large-file ()
   (with-open-file (stream +large-json-path+)
-    (read-json stream))
+    (decode-json stream))
   (values))
 
 (sb-sprof:with-profiling (:max-samples 1000 :report :flat :loop t)
