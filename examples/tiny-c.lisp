@@ -61,10 +61,10 @@
 
 ;; stmt := block-stmt | expr-stmt | branch-stmt | return-stmt
 (defparser stmt ()
-  (parse-or #'block-stmt
-            #'branch-stmt
-            #'return-stmt
-            #'expr-stmt))
+  (parse-or 'block-stmt
+            'branch-stmt
+            'return-stmt
+            'expr-stmt))
 
 ;; block-stmt := '{' stmt* '}'
 (defparser block-stmt ()
@@ -77,17 +77,17 @@
 (defparser expr-stmt ()
   (parse-map (lambda (expr)
                (list :expr-stmt expr))
-             (parse-prog1 (parse-try #'expr)
+             (parse-prog1 (parse-try 'expr)
                           *statement-end*)))
 
 ;; branch-stmt := 'if' '(' expr ')' stmt [ 'else' stmt ]
 (defparser branch-stmt ()
-  (parse-let ((condition (parse-progn (parse-try *if*)
-                                      (wrap-parens #'expr)))
+  (parse-let ((if-kw (parse-try *if*))
+              (condition (wrap-parens 'expr))
               (then-body #'stmt)
-              (else-body (parse-optional
-                           (parse-prog2 (parse-try *else*)
-                                        #'stmt))))
+              (else-kw (parse-try *else*))
+              (else-body #'stmt))
+    (declare (ignore if-kw else-kw))
     (list :branch-stmt condition then-body else-body)))
 
 ;; return-stmt := 'return' expr ';'
@@ -96,7 +96,7 @@
     (lambda (expr)
       (list :return-stmt expr))
     (parse-prog2 (parse-try *return*)
-                 #'expr
+                 'expr
                  *statement-end*)))
 
 
@@ -104,15 +104,15 @@
 ;; args := [ expr ( ',' expr )* ]
 (defparser args ()
   (parse-optional
-    (parse-let ((head-expr #'expr)
+    (parse-let ((head-expr 'expr)
                 (tail-exprs (parse-collect
-                              (parse-prog2 *comma*
-                                           #'expr))))
+                              (parse-progn *comma*
+                                           'expr))))
       (list* head-expr tail-exprs))))
 
 ;; primary-expr := '(' expr ')' | integer | ident [ '(' args ')' ]
 (defparser primary-expr ()
-  (parse-or (wrap-parens #'expr)
+  (parse-or (wrap-parens 'expr)
             (integer-parser)
             (parse-let ((name *ident*)
                         (call-args (parse-optional (wrap-parens #'args))))
