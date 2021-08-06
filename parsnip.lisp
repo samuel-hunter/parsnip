@@ -83,7 +83,7 @@
 
 
 
-;; Parsers
+;; Primitive Parselets
 
 (defun char-parser (char)
   "Return a parser that accepts the given character value."
@@ -165,13 +165,13 @@
   "Compose multiple parsers to run in sequence, and apply the function to all
    parsers' values."
   (lambda (stream)
-    (do ((parsers* parsers (rest parsers*))
-         list)
-        ((null parsers*)
-         (just (apply function (nreverse list))))
-        (let ((result (funcall (first parsers*) stream)))
+    (do ((parsers-left parsers (rest parsers-left))
+         arguments)
+        ((null parsers-left)
+         (just (apply function (nreverse arguments))))
+        (let ((result (funcall (first parsers-left) stream)))
           (etypecase result
-            (just (push (just-value result) list))
+            (just (push (just-value result) arguments))
             (failure (return result)))))))
 
 (defun parse-progn (&rest parsers)
@@ -179,14 +179,14 @@
    value."
   (assert (plusp (length parsers)))
   (lambda (stream)
-    (do* ((parsers-left parsers (rest parsers-left))
-          (partially-parsed nil t)
-          result)
-      ((null parsers-left) result)
-      (setf result (funcall (first parsers-left) stream))
-      (when (failure-p result)
-        (setf (failure-partially-parsed result) partially-parsed)
-        (return result)))))
+    (do ((parsers-left parsers (rest parsers-left))
+         final-result)
+        ((null parsers-left)
+         final-result)
+        (let ((result (funcall (first parsers-left) stream)))
+          (etypecase result
+            (just (setf final-result result))
+            (failure (return result)))))))
 
 (defun parse-prog1 (first-parser &rest parsers)
   "Compose multiple parsers to run in sequence, returning the first parser's
@@ -213,11 +213,12 @@
   "Enhance the parser to keep running until failure, and collect the results.
    Passes through any partial-parse falures."
   (lambda (stream)
-    (do ((list () (cons (just-value result) list))
-         (result (funcall parser stream) (funcall parser stream)))
-        ((failure-p result)
-         (with-failure result ()
-           (just (nreverse list)))))))
+    (do ((last-result (funcall parser stream) (funcall parser stream))
+         values)
+        ((failure-p last-result)
+         (with-failure last-result ()
+           (just (nreverse values))))
+        (push (just-value last-result) values))))
 
 (defun parse-collect1 (parser)
   "Enhance the parser to keep running until failure, and collect AT LEAST one
@@ -232,10 +233,10 @@
   "Enhance the parser to keep running until failure, and reduce the results
    into a single value. Passes through any partial-parse failure."
   (lambda (stream)
-    (do ((value initial-value (funcall function value (just-value result)))
-         (result (funcall parser stream) (funcall parser stream)))
-        ((failure-p result)
-         (with-failure result ()
+    (do ((last-result (funcall parser stream) (funcall parser stream))
+         (value initial-value (funcall function value (just-value last-result))))
+        ((failure-p last-result)
+         (with-failure last-result ()
            (just value))))))
 
 (defun parse-take (times parser)
@@ -261,8 +262,7 @@
         ((null parsers-left)
          (expected (nreverse expected-elements) stream nil))
         (let ((result (funcall (first parsers-left) stream)))
-          (if (or (just-p result)
-                  (failure-partially-parsed result))
+          (if (or (just-p result) (failure-partially-parsed result))
               (return result)
               (push (failure-element result) expected-elements))))))
 
