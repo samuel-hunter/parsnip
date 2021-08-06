@@ -70,8 +70,9 @@
 (defun error-failure (failure)
   "Signal an error depending on the given failure."
   (error 'parser-error
+         :stream (failure-stream failure)
          :element (failure-element failure)
-         :stream (failure-stream failure)))
+         :return-trace (failure-return-trace failure)))
 
 (defun parse (parser stream)
   "Run a parser through a given stream and raise any failures as a condition."
@@ -165,15 +166,13 @@
    parsers' values."
   (lambda (stream)
     (do ((parsers* parsers (rest parsers*))
-         (partially-parsed nil t)
          list)
         ((null parsers*)
          (just (apply function (nreverse list))))
         (let ((result (funcall (first parsers*) stream)))
           (etypecase result
             (just (push (just-value result) list))
-            (failure (setf (failure-partially-parsed result) partially-parsed)
-                     (return result)))))))
+            (failure (return result)))))))
 
 (defun parse-progn (&rest parsers)
   "Compose multiple parsers to run in sequence, returning the last parser's
@@ -295,18 +294,18 @@
                         result))
         (just result)))))
 
+(defun ensure-binding (sym binding)
+  (unless (and (listp binding) (= 2 (length binding)))
+    (error "The ~S binding-spec ~S is malformed." sym binding)))
+
 (defmacro parse-let (bindings &body body)
   "Compose multiple parsers together to bind their results to variables and
    return a value within the body."
-  (flet ((bind-just (stream var result-form)
-           `(with-just (funcall ,var ,stream) (,var)
-              ,result-form)))
-    (with-gensyms (stream)
-      `(lambda (,stream)
-         (let ,bindings
-           ,(reduce (curry #'bind-just stream) (mapcar #'car bindings)
-                    :initial-value `(just (progn ,@body))
-                    :from-end t))))))
+  (dolist (binding bindings)
+    (ensure-binding 'parse-let binding))
+  `(parse-map (lambda ,(mapcar #'first bindings)
+                ,@body)
+              ,@(mapcar #'second bindings)))
 
 (defmacro parse-defer (form)
   "Defer evaluating the parser-returning FORM until the parser is called.
@@ -328,13 +327,15 @@
 
 (defun digit-parser (&optional (radix 10))
   (check-type radix (integer 2 36))
-  (parse-map (lambda (ch)
-               (let ((code (char-code ch)))
-                 (if (<= #.(char-code #\0) code #.(char-code #\9))
-                     (- code #.(char-code #\0))
-                     (+ 10 (- (char-code (char-upcase ch)) #.(char-code #\A))))))
-             (predicate-parser (rcurry #'digit-char-p radix))))
+  (parse-tag (cons :digit radix)
+             (parse-map (lambda (ch)
+                          (let ((code (char-code ch)))
+                            (if (<= #.(char-code #\0) code #.(char-code #\9))
+                                (- code #.(char-code #\0))
+                                (+ 10 (- (char-code (char-upcase ch)) #.(char-code #\A))))))
+                        (predicate-parser (rcurry #'digit-char-p radix)))))
 
 (defun integer-parser (&optional (radix 10))
-  (parse-map (curry #'reduce (lambda (num dig) (+ (* num radix) dig)))
-             (parse-collect1 (digit-parser radix))))
+  (parse-tag (cons :integer radix)
+             (parse-map (curry #'reduce (lambda (num dig) (+ (* num radix) dig)))
+                        (parse-collect1 (digit-parser radix)))))

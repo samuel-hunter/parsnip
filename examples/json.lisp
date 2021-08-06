@@ -7,8 +7,7 @@
   (:documentation "Parsnip example JSON decoder")
   (:use #:cl #:xyz.shunter.parsnip)
   (:import-from #:alexandria
-                #:eswitch
-                #:rcurry)
+                #:eswitch)
   (:export #:decode-json
            #:decode-json-from-string))
 
@@ -110,8 +109,9 @@
 ;; member := string name-separator value
 (defparameter *member*
   (parse-let ((name *string*)
-              (value (parse-progn *name-separator*
-                                  #'value)))
+              (separator *name-separator*)
+              (value 'value))
+    (declare (ignore separator))
     (cons name value)))
 
 ;; object := begin-object [ member ( value-separator member ) + ] end-object
@@ -124,7 +124,7 @@
                                                    *value-separator*
                                                    *member*))))
                       (cons first-member other-members))
-                    nil)
+                    ())
     *end-object*))
 
 ;;; RFC 8259 § 5. Arrays
@@ -133,13 +133,13 @@
 (defparameter *array*
   (parse-prog2
     *begin-array*
-    (parse-optional (parse-let ((first-value #'value)
+    (parse-optional (parse-let ((first-value 'value)
                                 (other-values
                                   (parse-collect (parse-progn
                                                    *value-separator*
-                                                   #'value))))
+                                                   'value))))
                       (cons first-value other-values))
-                    nil)
+                    ())
     *end-array*))
 
 ;; RFC 8259 § 6. Numbers
