@@ -11,8 +11,7 @@
                 #:with-gensyms
                 #:once-only
                 #:curry
-                #:rcurry
-                #:compose)
+                #:rcurry)
   (:export #:parser-error
            #:parser-error-element
            #:parser-error-return-trace
@@ -313,13 +312,13 @@
   (with-gensyms (stream)
     `(lambda (,stream) (funcall ,form ,stream))))
 
-(defmacro defparser (name () &body body)
+(defmacro defparser (name () &body (form))
   "Define a parser as a function.
    Enables other parsers to forward-reference it before it is defined."
   (with-gensyms (stream)
     `(defun ,name (,stream)
        (with-trace (,name)
-         (funcall (progn ,@body) ,stream)))))
+         (funcall ,form ,stream)))))
 
 
 
