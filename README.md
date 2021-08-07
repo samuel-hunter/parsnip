@@ -10,7 +10,7 @@ I don't trust third-party libraries that don't trust themselves, so I've made my
 
 ## Road to Production-Readiness
 
-The general API is figured out -- it should change minimally through 0.1.0.
+The general API is figured out -- it should change minimally through to 0.1.0.
 Most everything else (quickstart documentation, benchmarking) can now follow.
 
 - [ ] The external API is stable, including primitive parsers and parser combinators
@@ -18,14 +18,17 @@ Most everything else (quickstart documentation, benchmarking) can now follow.
   - [x] Some robust way to figure out parser debugging.
   	I've decided to go for return traces during failures. It seems to work pretty well!
   - [x] Parselets for common idioms (like digits and numbers).
+  - [x] Inestigate multi-stage parsers with generic streams.
+        I know that many parsers work by having a lexing stage, and then a tree-building stage.
+	I experimented with this with the JSON example to see if it made any improvement, and the speed slowed down from 2.5x to ~5x.
 - [ ] Code tests
   - [x] Every external function is unit-tested.
   - [x] 95% code coverage in `parsnip.lisp` as reported by `sb-cover`.
         True as of commit `0b7a7173cd5b54799378a2b306035bc1feef13e3` - 95.7% coverage in expressions, and 100% coverage in branches
   - [ ] Benchmarks should have a reasonable speed.
         I don't plan for this library to be the fastest, but it shouldn't be snailing either.
-	The current speed of the JSON example is about 2.25x slower than cl-json.
-	This is very close to my target of being only twice as slow.
+	The current speed of the JSON example is about 2.5x slower than cl-json.
+	This is close to my target of being only twice as slow.
 - [x] Documentation
   - [x] Code examples with real formats
     - [X] JSON
@@ -34,6 +37,7 @@ Most everything else (quickstart documentation, benchmarking) can now follow.
   - [x] Quickstart within the README
   - [x] A full reference somewhere, maybe within the README
 - [ ] Peer review. I need more than myself looking at the project. Many eyes are welcome :)
+- [ ] Time * Exposure.
 - [x] A nice drawing of a parsnip :)
 
 ## Contributions
