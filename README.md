@@ -141,7 +141,7 @@ Parselets are parsers meant to be building blocks for greater parsers:
 
 **eof-parser** *value* - Return a parser that accepts the end of a file and returns the given value.
 
-Non-promitive parselets include:
+Non-primitive parselets include:
 
 **digit-parser** *&optional (radix 10)* - Return a parser that accepts a digit and returns its number value.
 
@@ -190,7 +190,7 @@ Only works on seekable streams, and is the only parser that can recover from par
 
 **parse-defer** *form* - Return a parser that defers evaluating itself until it is called.
 
-**defparser** *name () &body body* - Define a parser as a function.
+**defparser** *name () form* - Define a parser as a function:
 
 ```lisp
 (defparser alpha-parser ()
