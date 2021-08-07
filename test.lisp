@@ -432,7 +432,13 @@
           'parser-error)
 
     (fail (parse-string parser "!")
-          'parser-error)))
+          'parser-error))
+
+  (fail (eval '(parse-let (invalid-binding)
+                 :whatever)))
+
+  (fail (eval '(parse-let ((10 20 030 05 i5025 9258))
+                 whatever))))
 
 (define-test parse-defer
   :depends-on (char-parser)
