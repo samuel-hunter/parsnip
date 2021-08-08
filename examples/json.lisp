@@ -96,12 +96,7 @@
 (defparameter *string*
   (parse-prog2
     (char-parser #\")
-    (parse-defer
-      (parse-reduce #'add-to-string
-                    *char*
-                    (make-array 0 :element-type 'character
-                                :adjustable t
-                                :fill-pointer 0)))
+    (parse-collect-string *char*)
     (char-parser #\")))
 
 ;;; RFC 8259 § 4. Objects

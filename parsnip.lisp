@@ -33,6 +33,7 @@
 
            #:parse-collect
            #:parse-collect1
+           #:parse-collect-string
            #:parse-reduce
            #:parse-take
 
@@ -230,6 +231,19 @@
       (with-just (funcall parser stream) (head)
         (with-just (funcall collect-parser stream) (tail)
           (just (cons head tail)))))))
+
+(defun parse-collect-string (parser)
+  "Enhance the parser to keep collecting chars until failure, and return a string."
+  (lambda (stream)
+    (do ((last-result (funcall parser stream) (funcall parser stream))
+         (string (make-array 0
+                             :element-type 'character
+                             :adjustable t
+                             :fill-pointer 0)))
+        ((failure-p last-result)
+         (with-failure last-result ()
+           (just string)))
+        (vector-push-extend (just-value last-result) string))))
 
 (defun parse-reduce (function parser initial-value)
   "Enhance the parser to keep running until failure, and reduce the results

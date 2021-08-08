@@ -163,6 +163,8 @@ Parser combinators take in one or more parsers and return a parser with enhanced
 
 **parse-collect1** *parser* - Enhance the parser to keep running and collect at least one result until failure.
 
+**parse-collect-string** *parser* - Enhance the parser to keep collecting chars until failure, and return a string.
+
 **parse-reduce** *function parser initial-value* - Enhance the parser to keep running and reduce all results into a single value until failure.
 
 **parse-take** *times parser* - Enhance the parser to keep running and collect EXACTLY the given number of times.
