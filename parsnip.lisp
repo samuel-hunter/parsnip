@@ -62,9 +62,12 @@
   ((element :initarg :element :reader parser-error-element)
    (return-trace :initarg :return-trace :reader parser-error-return-trace))
   (:report (lambda (condition stream)
-             (format stream "Expected element ~S on ~S"
-                     (parser-error-element condition)
-                     (stream-error-stream condition)))))
+             (let ((element (parser-error-element condition))
+                   (err-stream (stream-error-stream condition)))
+               (format stream "Expected element ~S on ~S (position ~S)"
+                       element
+                       err-stream
+                       (ignore-errors (file-position err-stream)))))))
 
 (defun error-failure (failure)
   "Signal an error depending on the given failure."

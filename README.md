@@ -3,7 +3,7 @@
 
 ![Parsnip brand doodle](./brand.png)
 
-Quickly make combine small parsers together.
+Quickly combine small parsers together.
 
 Other parser combinator libraries I've found in the Common Lisp ecosystem is either extremely macro-heavy, or warns that it is not production-ready.
 I don't trust third-party libraries that don't trust themselves, so I've made my own, going for a simple interface with a production-readiness goal.
