@@ -8,8 +8,7 @@
   (:use #:cl #:xyz.shunter.parsnip)
   (:import-from #:alexandria
                 #:eswitch)
-  (:export #:decode-json
-           #:decode-json-from-string))
+  (:export #:decode-json-from-string))
 
 (in-package #:xyz.shunter.parsnip.examples.json)
 
@@ -23,9 +22,7 @@
 
 ;; whitespace := ( space | tab | newline | return )*
 (defparameter *whitespace*
-  (parse-reduce (constantly nil)
-                (charbag-parser '(#\Space #\Tab #\Newline #\Return))
-                nil))
+  (parse-skip-many (charbag-parser '(#\Space #\Tab #\Newline #\Return))))
 
 (defun trim-ws (parser)
   (parse-prog2 *whitespace* parser *whitespace*))
@@ -198,9 +195,5 @@
 
 
 
-(defun decode-json (&optional (stream *standard-input*))
-  (parse *text* stream))
-
 (defun decode-json-from-string (string)
-  (with-input-from-string (stream string)
-    (decode-json stream)))
+  (parse *text* (coerce string 'list)))

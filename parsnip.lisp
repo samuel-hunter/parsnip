@@ -36,6 +36,7 @@
            #:parse-collect1
            #:parse-reduce
            #:parse-take
+           #:parse-skip-many
 
            #:parse-try
            #:parse-tag
@@ -358,6 +359,26 @@
                      (funcall efail (collect-failure state x)))
                    ;; empty-failure
                    efail)))))
+
+(defun parse-skip-many (parser)
+  (lambda (state cok cfail eok efail)
+    (declare (ignore cok))
+    (nlet iter ((state state)
+                (efail efail))
+      (funcall parser state
+               ;; consumed-ok
+               (lambda (x state failure)
+                 (declare (ignore x failure))
+                 (iter state cfail))
+               ;; consumed-failure
+               cfail
+               ;; empty-ok
+               (lambda (x state failure)
+                 (declare (ignore failure))
+                 (funcall efail (collect-failure state x)))
+               ;; empty-failure
+               (lambda (failure)
+                 (funcall eok nil state failure))))))
 
 (defun parse-try (parser)
   (lambda (state cok cfail eok efail)

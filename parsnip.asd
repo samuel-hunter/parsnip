@@ -38,7 +38,7 @@
   :version "0.0.5"
 
   :depends-on (#:parsnip
-               ;; #:parsnip/examples
+               #:parsnip/examples
                #:parachute)
   :components ((:file "test"))
   :perform (asdf:test-op (op c)
