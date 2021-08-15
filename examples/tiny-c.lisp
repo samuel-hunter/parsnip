@@ -6,7 +6,10 @@
 (defpackage #:xyz.shunter.parsnip.examples.tiny-c
   (:documentation "Parsnip example parser for a tiny C")
   (:use #:cl #:xyz.shunter.parsnip)
-  (:export #:parse-tiny-c-from-string))
+  (:import-from #:alexandria
+                #:read-stream-content-into-string)
+  (:export #:parse-tiny-c
+           #:parse-tiny-c-from-string))
 
 (in-package #:xyz.shunter.parsnip.examples.tiny-c)
 
@@ -198,7 +201,7 @@
 
 
 (defun parse-tiny-c (stream)
-  (parse #'program stream))
+  (parse #'program (read-stream-content-into-string stream)))
 
 (defun parse-tiny-c-from-string (string)
   (parse #'program (coerce string 'list)))

@@ -127,6 +127,25 @@
               .,body))
      (,name .,(mapcar #'second bindings))))
 
+(defun first-elm (seq)
+  (elt seq 0))
+
+(defun rest-elms (seq)
+  (etypecase seq
+    (vector (multiple-value-bind (displaced-to displaced-offset)
+              (array-displacement seq)
+              (make-array (1- (length seq))
+                          :element-type (array-element-type seq)
+                          :displaced-to (or displaced-to seq)
+                          :displaced-index-offset (1+ displaced-offset))))
+    (list (rest seq))))
+
+(defmacro with-elms ((first rest) seq &body body)
+  (once-only (seq)
+    `(let ((,first (first-elm ,seq))
+           (,rest (rest-elms ,seq)))
+       .,body)))
+
 
 
 ;; Primitives
@@ -140,9 +159,9 @@
     (declare (ignore cfail eok))
     (with-accessors ((input state-input)
                      (cursor state-cursor)) state
-      (if (null input)
+      (if (zerop (length input))
           (funcall efail (unexpected state "EOF"))
-          (destructuring-bind (e &rest es) input
+          (with-elms (e es) input
             (if (funcall pred e)
                 (funcall cok
                          e
@@ -441,25 +460,27 @@
     (nlet iter ((state state)
                 (eok eok)
                 (efail efail)
-                (elms-left (coerce string 'list)))
+                (string-left string))
       (with-accessors ((input state-input)
                        (cursor state-cursor)) state
         (cond
-          ((null elms-left)
+          ((zerop (length string-left))
            (funcall eok string state (unknown state)))
-          ((or (null input) (not (char= (first elms-left)
-                                        (first input))))
+          ((zerop (length input))
            (funcall efail (expected state (format nil "\"~A\"" string))))
-          (t (iter (advance-state state #'advance-cursor-char
-                                  (first input) (rest input))
-                   cok cfail
-                   (rest elms-left))))))))
+          (t (with-elms (e es) input
+               (if (char= e (aref string-left 0))
+                   (iter (advance-state state #'advance-cursor-char
+                                        e es)
+                         cok cfail
+                         (rest-elms string-left))
+                   (funcall efail (expected state (Format nil "\"~A\"" string)))))))))))
 
 (defparameter +eof-parser+
   (lambda (state cok cfail eok efail)
     (declare (ignore cok cfail))
     (with-accessors ((input state-input)) state
-      (if (null input)
+      (if (zerop (length input))
           (funcall eok nil state (unknown state))
           (funcall efail (expected state "EOF"))))))
 

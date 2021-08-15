@@ -14,11 +14,8 @@
 
 
 
-(defun parse-string (parser string)
-  (parse parser (coerce string 'list)))
-
 (defun capture-parse-error (parser string)
-  (multiple-value-bind (always-nil err) (ignore-errors (parse-string parser string))
+  (multiple-value-bind (always-nil err) (ignore-errors (parse parser string))
     (declare (ignore always-nil))
     err))
 
@@ -37,57 +34,57 @@
 (define-test char-parser
   (let ((parser (char-parser #\a)))
     (is char= #\a
-        (parse-string parser "abc"))
+        (parse parser "abc"))
 
     (is char= #\a
-        (parse-string parser "a"))
+        (parse parser "a"))
 
-    (fail (parse-string parser "z")
+    (fail (parse parser "z")
           'parser-error)
 
-    (fail (parse-string parser "")
+    (fail (parse parser "")
           'parser-error)))
 
 (define-test predicate-parser
   (let ((parser (predicate-parser #'digit-char-p)))
     (is char= #\0
-        (parse-string parser "0"))
+        (parse parser "0"))
 
     (is char= #\0
-        (parse-string parser "012"))
+        (parse parser "012"))
 
     (is char= #\9
-        (parse-string parser "9"))
+        (parse parser "9"))
 
-    (fail (parse-string parser "z")
+    (fail (parse parser "z")
           'parser-error)
 
-    (fail (parse-string parser "")
+    (fail (parse parser "")
           'parser-error)))
 
 (define-test string-parser
   (let ((parser (string-parser "foo")))
     (is string= "foo"
-        (parse-string parser "foo"))
+        (parse parser "foo"))
 
     (is string= "foo"
-        (parse-string parser "foobar"))
+        (parse parser "foobar"))
 
-    (fail (parse-string parser "bar")
+    (fail (parse parser "bar")
           'parser-error)
 
-    (fail (parse-string parser "fo")
+    (fail (parse parser "fo")
           'parser-error)
 
-    (fail (parse-string parser "")
+    (fail (parse parser "")
           'parser-error)))
 
 (define-test eof-parser
   (let ((parser (eof-parser)))
     (is eq nil
-        (parse-string parser ""))
+        (parse parser ""))
 
-    (fail (parse-string parser "foo")
+    (fail (parse parser "foo")
           'parser-error)))
 
 (define-test parse-map
@@ -95,18 +92,18 @@
   (let ((parser (parse-map #'char-code
                            (char-parser #\a))))
     (is = #.(char-code #\a)
-        (parse-string parser "a"))
+        (parse parser "a"))
 
-    (fail (parse-string parser "z")
+    (fail (parse parser "z")
           'parser-error))
 
   (let ((parser (parse-map #'list
                            (char-parser #\a)
                            (char-parser #\b))))
     (is equal '(#\a #\b)
-        (parse-string parser "ab"))
+        (parse parser "ab"))
 
-    (fail (parse-string parser "a")
+    (fail (parse parser "a")
           'parser-error)))
 
 (define-test parse-progn
@@ -114,38 +111,38 @@
   (let ((a (parse-progn (char-parser #\a))))
     ;; parse-progn with a single element should act like its child parser
     (is char= #\a
-        (parse-string a "a"))
+        (parse a "a"))
 
-    (fail (parse-string a "z")
+    (fail (parse a "z")
           'parser-error))
 
   (let ((ab (parse-progn (char-parser #\a)
                          (char-parser #\b))))
     (is char= #\b
-        (parse-string ab "ab"))
+        (parse ab "ab"))
 
-    (fail (parse-string ab "az")
+    (fail (parse ab "az")
           'parser-error)
 
-    (fail (parse-string ab "b")
+    (fail (parse ab "b")
           'parser-error))
 
   (let ((abc (parse-progn (char-parser #\a)
                           (char-parser #\b)
                           (char-parser #\c))))
     (is char= #\c
-        (parse-string abc "abc"))
+        (parse abc "abc"))
 
-    (fail (parse-string abc "abz")
+    (fail (parse abc "abz")
           'parser-error)
 
-    (fail (parse-string abc "az")
+    (fail (parse abc "az")
           'parser-error)
 
-    (fail (parse-string abc "bc")
+    (fail (parse abc "bc")
           'parser-error)
 
-    (fail (parse-string abc "c")
+    (fail (parse abc "c")
           'parser-error)))
 
 (define-test parse-prog1
@@ -153,41 +150,41 @@
   (let ((a (parse-prog1 (char-parser #\a))))
     ;; parse-prog1 with a single element should act like its child parser
     (is char= #\a
-        (parse-string a "a"))
+        (parse a "a"))
 
-    (fail (parse-string a "z")
+    (fail (parse a "z")
           'parser-error))
 
   (let ((ab (parse-prog1 (char-parser #\a)
                          (char-parser #\b))))
     (is char= #\a
-        (parse-string ab "ab"))
+        (parse ab "ab"))
 
-    (fail (parse-string ab "az")
+    (fail (parse ab "az")
           'parser-error)
 
-    (fail (parse-string ab "b")
+    (fail (parse ab "b")
           'parser-error))
 
   (let ((abc (parse-prog1 (char-parser #\a)
                           (char-parser #\b)
                           (char-parser #\c))))
     (is char= #\a
-        (parse-string abc "abc"))
+        (parse abc "abc"))
 
-    (fail (parse-string abc "abz")
+    (fail (parse abc "abz")
           'parser-error)
 
-    (fail (parse-string abc "az")
+    (fail (parse abc "az")
           'parser-error)
 
-    (fail (parse-string abc "z")
+    (fail (parse abc "z")
           'parser-error)
 
-    (fail (parse-string abc "bc")
+    (fail (parse abc "bc")
           'parser-error)
 
-    (fail (parse-string abc "c")
+    (fail (parse abc "c")
           'parser-error)))
 
 (define-test parse-prog2
@@ -195,63 +192,63 @@
   (let ((ab (parse-prog2 (char-parser #\a)
                          (char-parser #\b))))
     (is char= #\b
-        (parse-string ab "ab"))
+        (parse ab "ab"))
 
-    (fail (parse-string ab "az")
+    (fail (parse ab "az")
           'parser-error)
 
-    (fail (parse-string ab "z")
+    (fail (parse ab "z")
           'parser-error))
 
   (let ((abc (parse-prog2 (char-parser #\a)
                           (char-parser #\b)
                           (char-parser #\c))))
     (is char= #\b
-        (parse-string abc "abc"))
+        (parse abc "abc"))
 
-    (fail (parse-string abc "abz")
+    (fail (parse abc "abz")
           'parser-error)
 
-    (fail (parse-string abc "az")
+    (fail (parse abc "az")
           'parser-error)
 
-    (fail (parse-string abc "bc")
+    (fail (parse abc "bc")
           'parser-error)
 
-    (fail (parse-string abc "c")
+    (fail (parse abc "c")
           'parser-error)))
 
 (define-test parse-or
   :depends-on (char-parser string-parser)
   (let ((a (parse-or (char-parser #\a))))
     (is char= #\a
-        (parse-string a "a"))
+        (parse a "a"))
 
-    (fail (parse-string a "z")
+    (fail (parse a "z")
           'parser-error))
 
   (let ((abc (parse-or (char-parser #\a)
                        (char-parser #\b)
                        (char-parser #\c))))
     (is char= #\a
-        (parse-string abc "a"))
+        (parse abc "a"))
 
     (is char= #\b
-        (parse-string abc "b"))
+        (parse abc "b"))
 
     (is char= #\c
-        (parse-string abc "c"))
+        (parse abc "c"))
 
-    (fail (parse-string abc "z")
+    (fail (parse abc "z")
           'parser-error))
 
   (let ((foobar (parse-or (string-parser "foo")
                           (string-parser "bar"))))
     (is string= "foo"
-        (parse-string foobar "foo"))
+        (parse foobar "foo"))
 
     ;; Partially parsed on string "bar"
-    (fail (parse-string foobar "baz")
+    (fail (parse foobar "baz")
           'parser-error
           "parse-or fails early on a partial parse.")))
 
@@ -259,27 +256,27 @@
   :depends-on (char-parser string-parser)
   (let ((a (parse-optional (char-parser #\a))))
     (is char= #\a
-        (parse-string a "a"))
+        (parse a "a"))
 
     (is eq nil
-        (parse-string a "z"))
+        (parse a "z"))
 
     (is eq nil
-        (parse-string a "")))
+        (parse a "")))
 
   (let ((a-or-b (parse-optional (char-parser #\a)
                                 #\b)))
     (is char= #\b
-        (parse-string a-or-b "z"))
+        (parse a-or-b "z"))
 
     (is char= #\b
-        (parse-string a-or-b "")))
+        (parse a-or-b "")))
 
   (let ((foo (parse-optional (string-parser "bar"))))
     (is string= "bar"
-        (parse-string foo "bar"))
+        (parse foo "bar"))
 
-    (fail (parse-string foo "baz")
+    (fail (parse foo "baz")
           'parser-error
           "parse-optional fails when any input is consumed.")))
 
@@ -287,24 +284,24 @@
   :depends-on (predicate-parser string-parser parse-optional)
   (let ((parser (parse-collect (predicate-parser #'alpha-char-p))))
     (is equal '(#\a)
-        (parse-string parser "a"))
+        (parse parser "a"))
 
     (is equal '(#\a #\b #\c)
-        (parse-string parser "abc"))
+        (parse parser "abc"))
 
     (is equal ()
-        (parse-string parser "")))
+        (parse parser "")))
 
   (let ((bars (parse-collect (string-parser "bar"))))
     (is equal '("bar" "bar" "bar")
-        (parse-string bars "barbarbar"))
+        (parse bars "barbarbar"))
 
-    (fail (parse-string bars "barbarbaz")
+    (fail (parse bars "barbarbaz")
           'parser-error
           "parse-collect fails when the last (errorful) parse consumes input."))
 
   (let ((maybe-bar (parse-collect (parse-optional (string-parser "bar")))))
-    (fail (parse-string maybe-bar "foo")
+    (fail (parse maybe-bar "foo")
           'parser-error
           "parse-collect's backing parser MUST consume on success.")))
 
@@ -312,24 +309,24 @@
   :depends-on (predicate-parser string-parser)
   (let ((parser (parse-collect1 (predicate-parser #'alpha-char-p))))
     (is equal '(#\a)
-        (parse-string parser "a"))
+        (parse parser "a"))
 
     (is equal '(#\a #\b #\c)
-        (parse-string parser "abc"))
+        (parse parser "abc"))
 
-    (fail (parse-string parser "")
+    (fail (parse parser "")
           'parser-error))
 
   (let ((bars (parse-collect (string-parser "bar"))))
     (is equal '("bar" "bar" "bar")
-        (parse-string bars "barbarbar"))
+        (parse bars "barbarbar"))
 
-    (fail (parse-string bars "barbarbaz")
+    (fail (parse bars "barbarbaz")
           'parser-error
           "parse-collect1 fails when the last (errorful) parse consumes input."))
 
   (let ((maybe-bar (parse-collect (parse-optional (string-parser "bar")))))
-    (fail (parse-string maybe-bar "foo")
+    (fail (parse maybe-bar "foo")
           'parser-error
           "parse-collect1's backing parser MUST consume on success.")))
 
@@ -341,24 +338,24 @@
                               (- (char-code digit) #.(char-code #\0))))
                          (predicate-parser #'digit-char-p) 0)))
     (is = 123
-        (parse-string number-parser "123"))
+        (parse number-parser "123"))
 
     (is = 0
-        (parse-string number-parser ""))))
+        (parse number-parser ""))))
 
 (define-test parse-take
   :depends-on (predicate-parser)
   (let ((letters (parse-take 3 (predicate-parser #'alpha-char-p))))
     (is equal '(#\a #\a #\a)
-        (parse-string letters "aaa"))
+        (parse letters "aaa"))
 
     (is equal '(#\a #\b #\c)
-        (parse-string letters "abc123"))
+        (parse letters "abc123"))
 
-    (fail (parse-string letters "ab!")
+    (fail (parse letters "ab!")
           'parser-error)
 
-    (fail (parse-string letters "ab")
+    (fail (parse letters "ab")
           'parser-error)))
 
 (define-test parse-try
@@ -367,13 +364,13 @@
          (foo-or-bar (parse-or try-foo
                                (string-parser "bar"))))
     (is string= "foo"
-        (parse-string try-foo "foo"))
+        (parse try-foo "foo"))
 
     (is string= "foo"
-        (parse-string foo-or-bar "foo"))
+        (parse foo-or-bar "foo"))
 
     (is string= "bar"
-        (parse-string foo-or-bar "bar"))))
+        (parse foo-or-bar "bar"))))
 
 (define-test parse-let
   :depends-on (predicate-parser)
@@ -381,15 +378,15 @@
                             (alpha (predicate-parser #'alpha-char-p)))
                   (cons digit alpha))))
     (is equal (cons #\1 #\a)
-        (parse-string parser "1a"))
+        (parse parser "1a"))
 
     (is equal (cons #\2 #\b)
-        (parse-string parser "2b"))
+        (parse parser "2b"))
 
-    (fail (parse-string parser "3!")
+    (fail (parse parser "3!")
           'parser-error)
 
-    (fail (parse-string parser "!")
+    (fail (parse parser "!")
           'parser-error))
 
   (fail (eval '(parse-let (invalid-binding)
@@ -402,51 +399,51 @@
   (let ((decimal (digit-parser))
         (hex (digit-parser 16)))
     (is = 0
-        (parse-string decimal "0"))
+        (parse decimal "0"))
 
     (is = 9
-        (parse-string decimal "9"))
+        (parse decimal "9"))
 
-    (fail (parse-string decimal "A")
+    (fail (parse decimal "A")
           'parser-error)
 
     (is = 0
-        (parse-string hex "0"))
+        (parse hex "0"))
 
     (is = 15
-        (parse-string hex "F"))
+        (parse hex "F"))
 
     (is = 15
-        (parse-string hex "f"))
+        (parse hex "f"))
 
-    (fail (parse-string hex "G")
+    (fail (parse hex "G")
           'parser-error)))
 
 (define-test integer-parser
   (let ((decimalparser (integer-parser))
         (hexparser (integer-parser 16)))
     (is = 0
-        (parse-string decimalparser "0"))
+        (parse decimalparser "0"))
 
     (is = 10
-        (parse-string decimalparser "10"))
+        (parse decimalparser "10"))
 
     (is = 5
-        (parse-string decimalparser "00005"))
+        (parse decimalparser "00005"))
 
     (is = 123
-        (parse-string decimalparser "123A"))
+        (parse decimalparser "123A"))
 
-    (fail (parse-string decimalparser "A")
+    (fail (parse decimalparser "A")
           'parser-error)
 
     (is = 255
-        (parse-string hexparser "FF"))
+        (parse hexparser "FF"))
 
     (is = 255
-        (parse-string hexparser "ff"))
+        (parse hexparser "ff"))
 
-    (fail (parse-string hexparser "G")
+    (fail (parse hexparser "G")
           'parser-error)))
 
 

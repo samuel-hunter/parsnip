@@ -7,8 +7,10 @@
   (:documentation "Parsnip example JSON decoder")
   (:use #:cl #:xyz.shunter.parsnip)
   (:import-from #:alexandria
-                #:eswitch)
-  (:export #:decode-json-from-string))
+                #:eswitch
+                #:read-stream-content-into-string)
+  (:export #:decode-json
+           #:decode-json-from-string))
 
 (in-package #:xyz.shunter.parsnip.examples.json)
 
@@ -195,5 +197,8 @@
 
 
 
+(defun decode-json (stream)
+  (parse *text* (read-stream-content-into-string stream)))
+
 (defun decode-json-from-string (string)
-  (parse *text* (coerce string 'list)))
+  (parse *text* string))
