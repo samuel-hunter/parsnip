@@ -48,7 +48,7 @@
     (fail (parse-string parser "")
           'parser-error)
 
-    (is char= #\a
+    (is char= #\z
         (parser-error-element
           (capture-parse-error parser "z")))))
 
@@ -69,7 +69,7 @@
     (fail (parse-string parser "")
           'parser-error)
 
-    (is eq #'digit-char-p
+    (is char= #\z
         (parser-error-element
           (capture-parse-error parser "z")))))
 
@@ -128,7 +128,7 @@
     (fail (parse-string parser "z")
           'parser-error)
 
-    (is char= #\a
+    (is char= #\z
         (parser-error-element
           (capture-parse-error parser "z"))))
 
@@ -210,7 +210,7 @@
     (fail (parse-string abc "abz")
           'parser-error)
 
-    (is char= #\c
+    (is char= #\z
         (parser-error-element
           (capture-parse-error abc "abz")))
 
@@ -220,7 +220,7 @@
     (fail (parse-string abc "z")
           'parser-error)
 
-    (is char= #\a
+    (is char= #\z
         (parser-error-element
           (capture-parse-error abc "z")))
 
@@ -285,7 +285,7 @@
     (fail (parse-string abc "z")
           'parser-error)
 
-    (is equal '(#\a #\b #\c)
+    (is char= #\z
         (parser-error-element
           (capture-parse-error abc "z"))))
 
