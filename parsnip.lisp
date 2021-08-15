@@ -18,12 +18,10 @@
            #:parser-error
            #:parser-error-element
            #:parser-error-cursor
-           #:parse
 
-           #:char-parser
-           #:predicate-parser
-           #:string-parser
-           #:eof-parser
+           #:parse-let
+           #:defparser
+           #:parse
 
            #:parse-map
 
@@ -36,17 +34,18 @@
 
            #:parse-collect
            #:parse-collect1
-           #:parse-collect-string
            #:parse-reduce
            #:parse-take
 
            #:parse-try
            #:parse-tag
 
-           #:parse-let
-           #:parse-defer
-           #:defparser
+           #:char-parser
+           #:predicate-parser
+           #:string-parser
+           #:eof-parser
 
+           #:parse-collect-string
            #:digit-parser
            #:integer-parser))
 
@@ -67,40 +66,32 @@
 
 (defstruct (failure (:predicate nil)
                     (:copier nil))
-  cursor element format-control format-args)
+  state messages)
 
-(defun unexpected (state element string)
-  (make-failure :cursor (state-cursor state)
-                :element element
-                :format-control "Unexpected element ~A"
-                :format-args (list string)))
+(defun failure (state format-control &rest format-args)
+  (make-failure :state state
+                :messages (list (apply #'format nil format-control format-args))))
 
-(defun expected (state element string)
-  (make-failure :cursor (state-cursor state)
-                :element element
-                :format-control "Expected element ~A"
-                :format-args (list string)))
+(defun unexpected (state name)
+  (failure state "Unexpected element ~A" name))
+
+(defun expected (state name)
+  (failure state "Expected element ~A" name))
 
 (defun unknown (state)
-  (make-failure :cursor (state-cursor state)
-                :format-control "Unknown error"))
+  (failure state "Unknown error"))
 
 (define-condition parser-error (error)
-  ((format-control :initarg :format-control)
-   (format-args :initarg :format-args)
-   (cursor :initarg :cursor :reader parser-error-cursor)
-   (element :initarg :element :reader parser-error-element))
+  ((cursor :initarg :cursor :reader parser-error-cursor)
+   (messages :initarg :messages :reader parser-error-messages))
   (:report (lambda (condition stream)
-             (with-slots (format-control format-args) condition
-               (apply #'format stream format-control format-args)))))
+             (format stream "~S" (parser-error-messages condition)))))
 
 (defun failure-error (failure)
   "Signal an error depending on the given failure."
   (error 'parser-error
-         :format-control (failure-format-control failure)
-         :format-args (failure-format-args failure)
-         :element (failure-element failure)
-         :cursor (failure-cursor failure)))
+         :cursor (state-cursor (failure-state failure))
+         :messages (Failure-messages failure)))
 
 (defun ok-value (x state failure)
   (declare (ignore state failure))
@@ -149,7 +140,7 @@
     (with-accessors ((input state-input)
                      (cursor state-cursor)) state
       (if (null input)
-          (funcall efail (unexpected state :end-of-file "EOF"))
+          (funcall efail (unexpected state "EOF"))
           (destructuring-bind (e &rest es) input
             (if (funcall pred e)
                 (funcall cok
@@ -157,7 +148,7 @@
                          (advance-state state advance-cursor e es)
                          (unknown state))
                 (funcall efail
-                         (unexpected state e (funcall printer e)))))))))
+                         (unexpected state (funcall printer e)))))))))
 
 
 
@@ -245,6 +236,150 @@
     (declare (ignore first last))
     second))
 
+(defun parse-or (&rest parsers)
+  (lambda (state cok cfail eok efail)
+    (nlet iter ((messages ())
+                (parsers-left parsers))
+      (if (null parsers-left)
+          (funcall efail (make-failure :state state
+                                       :messages messages))
+          (funcall (first parsers-left) state
+                   ;; consumed-ok
+                   cok
+                   ;; consumed-failure
+                   cfail
+                   ;; empty-ok
+                   eok
+                   ;; empty-failure
+                   (lambda (failure)
+                     (iter (append (failure-messages failure) messages)
+                           (rest parsers-left))))))))
+
+(defun parse-optional (parser &optional error-value)
+  (lambda (state cok cfail eok efail)
+    (declare (ignore efail))
+    (funcall parser state
+             ;; consumed-ok
+             cok
+             ;; consumed-fail
+             cfail
+             ;; empty-ok
+             eok
+             ;; empty-fail
+             (lambda (failure)
+               (funcall eok error-value state failure)))))
+
+(defun collect-failure (state x)
+  ;; Backing parser of collect combinators MUST always consume on success.
+  (failure state "Parsed element '~S' without consuming input" x))
+
+(defun parse-collect (parser)
+  (lambda (state cok cfail eok efail)
+    (nlet iter ((state state)
+                (eok eok)
+                (efail efail)
+                (results ()))
+      (funcall parser state
+               ;; consumed-ok
+               (lambda (x state failure)
+                 (declare (ignore failure))
+                 (iter state cok cfail (cons x results)))
+               ;; consumed-failure
+               cfail
+               ;; empty-ok
+               (lambda (x state failure)
+                 (declare (ignore failure))
+                 ;; Backing parser of collect MUST always consume
+                 (funcall efail (collect-failure state x)))
+               ;; empty-failure
+               (lambda (failure)
+                 (funcall eok (nreverse results) state failure))))))
+
+(defun parse-collect1 (parser)
+  (lambda (state cok cfail eok efail)
+    (declare (ignore eok))
+    (funcall parser state
+             ;; consumed-ok
+             (lambda (x state failure)
+               (declare (ignore failure))
+               (funcall (parse-map (curry #'cons x)
+                                   (parse-collect parser))
+                        state cok cfail cok cfail))
+             ;; consumed-failure
+             cfail
+             ;; empty-ok
+             (lambda (x state failure)
+               (declare (ignore failure))
+               (funcall efail (collect-failure state x)))
+             ;; empty-failure
+             efail)))
+
+(defun parse-reduce (function parser initial-value)
+  (lambda (state cok cfail eok efail)
+    (nlet iter ((state state)
+                (eok eok)
+                (efail efail)
+                (result initial-value))
+      (funcall parser state
+               ;; consumed-ok
+               (lambda (x state failure)
+                 (declare (ignore failure))
+                 (iter state cok cfail (funcall function result x)))
+               ;; consumed-failure
+               cfail
+               ;; empty-ok
+               (lambda (x state failure)
+                 (declare (ignore failure))
+                 (funcall efail (collect-failure state x)))
+               ;; empty-failure
+               (lambda (failure)
+                 (funcall eok result state failure))))))
+
+(defun parse-take (n parser)
+  (check-type n (integer 0 *))
+  (lambda (state cok cfail eok efail)
+    (nlet iter ((state state)
+                (eok eok)
+                (efail efail)
+                (results ())
+                (n-left n))
+      (if (zerop n-left)
+          (funcall eok (nreverse results) state (unknown state))
+          (funcall parser state
+                   ;; consumed-ok
+                   (lambda (x state failure)
+                     (declare (ignore failure))
+                     (iter state cok cfail (cons x results) (1- n-left)))
+                   ;; consumed-failure
+                   cfail
+                   ;; empty-ok
+                   (lambda (x state failure)
+                     (declare (ignore failure))
+                     (funcall efail (collect-failure state x)))
+                   ;; empty-failure
+                   efail)))))
+
+(defun parse-try (parser)
+  (lambda (state cok cfail eok efail)
+    (declare (ignore cfail))
+    (funcall parser state
+             cok      ;; consumed-ok
+             efail    ;; consumed-failure
+             eok      ;; error-ok
+             efail))) ;; error-failure
+
+(defun parse-tag (name parser)
+  (lambda (state cok cfail eok efail)
+    (flet ((wrap-fail-cont (fail-cont)
+             (lambda (failure)
+               (declare (ignore failure))
+               (funcall fail-cont (expected state name)))))
+      (funcall parser state
+               cok ;; consumed-ok
+               (wrap-fail-cont cfail) ;; consumed-failure
+               eok ;; error-ok
+               (wrap-fail-cont efail))))) ;; error-failure
+
 
 
 ;; Character parsers
@@ -293,8 +428,7 @@
            (funcall eok string state (unknown state)))
           ((or (null input) (not (char= (first elms-left)
                                         (first input))))
-           (funcall efail (expected state string
-                                    (format nil "\"~A\"" string))))
+           (funcall efail (expected state (format nil "\"~A\"" string))))
           (t (iter (advance-state state #'advance-cursor-char
                                   (first input) (rest input))
                    cok cfail
@@ -306,7 +440,28 @@
     (with-accessors ((input state-input)) state
       (if (null input)
           (funcall eok nil state (unknown state))
-          (funcall efail (expected state :end-of-file "EOF"))))))
+          (funcall efail (expected state "EOF"))))))
 
 (defun eof-parser ()
   +eof-parser+)
+
+
+
+;; Compound parsers
+
+(defun parse-collect-string (parser)
+  (parse-map (rcurry #'coerce 'string)
+             (parse-collect parser)))
+
+(defun digit-parser (&optional (radix 10))
+  (parse-map (lambda (c)
+               (if (<= (char-code #\0) (char-code c) (char-code #\9))
+                   (- (char-code c) (char-code #\0))
+                   (- (+ 10 (char-code (char-upcase c))) (char-code #\A))))
+             (predicate-parser (rcurry #'digit-char-p radix))))
+
+(defun integer-parser (&optional (radix 10))
+  (parse-let ((digits (parse-collect1 (digit-parser radix))))
+    (reduce (lambda (n d)
+              (+ (* n radix) d))
+            digits)))

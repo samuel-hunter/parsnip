@@ -171,7 +171,7 @@ Parser combinators take in one or more parsers and return a parser with enhanced
 
 **parse-or** *&rest parsers* - Attempts each given parser in order until one succeeds.
 
-**parse-optional** *&rest parsers* - Enhance the parser to resume from a failure with a default value.
+**parse-optional** *parser &optional error-value* - Enhance the parser to resume from a failure with a default value.
 
 **parse-try** *parser* - Enhance the parser to try to rewind the stream on any partial-parse failure.
 Only works on seekable streams, and is the only parser that can recover from partial-parse failures.
