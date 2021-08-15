@@ -94,15 +94,6 @@
         (parser-error-element
           (capture-parse-error parser "bar")))))
 
-(define-test parser-error
-  :depends-on (char-parser)
-  (let* ((parser (char-parser #\a))
-         (err (capture-parse-error parser "z")))
-    (is equal #\a
-        (parser-error-element err))
-
-    (of-type stream (stream-error-stream err))))
-
 (define-test eof-parser
   (let ((parser (eof-parser)))
     (is eq nil
@@ -111,12 +102,9 @@
     (fail (parse-string parser "foo")
           'parser-error)
 
-    (is eq :eof
+    (is eq :end-of-file
         (parser-error-element
-          (capture-parse-error parser "foo"))))
-
-  (is eq :eof
-      (parse-string (eof-parser :eof) "")))
+          (capture-parse-error parser "foo")))))
 
 (define-test parse-map
   :depends-on (char-parser)

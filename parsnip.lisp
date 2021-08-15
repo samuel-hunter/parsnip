@@ -116,6 +116,27 @@
 
 
 
+;; Utilities
+
+(eval-when (:compile-toplevel :load-toplevel :execute)
+  (defun ensure-let-bindings (macro-name bindings)
+    (do ((bindings-left bindings (rest bindings-left))
+         (binding (first bindings) (first bindings-left)))
+        ((null bindings-left)
+
+         (check-type binding list)
+         (unless (= 2 (length binding))
+           (error "~S binding must have a length of 2" macro-name))
+         (check-type (first binding) symbol)))))
+
+(defmacro nlet (name (&rest bindings) &body body)
+  (ensure-let-bindings 'nlet bindings)
+  `(labels ((,name ,(mapcar #'first bindings)
+              .,body))
+     (,name .,(mapcar #'second bindings))))
+
+
+
 ;; Primitives
 
 (defun advance-state (state advance-cursor e es)
@@ -142,27 +163,11 @@
 
 ;; Parser macros
 
-(eval-when (:load-toplevel)
-  (defun ensure-let-bindings (macro-name bindings)
-    (do ((bindings-left bindings (rest bindings-left))
-         (binding (first bindings) (first bindings-left)))
-        ((null bindings-left))
-
-        (check-type binding list)
-        (unless (= 2 (length binding))
-          (error "~S binding must have a length of 2" macro-name))
-        (check-type (first binding) symbol))))
-
 (defmacro parse-let ((&rest bindings) &body body)
   (ensure-let-bindings 'parse-let bindings)
   `(parse-map (lambda ,(mapcar #'first bindings)
                 .,body)
               .,(mapcar #'second bindings)))
-
-(defmacro nlet (name (&rest bindings) &body body)
-  `(labels ((,name ,(mapcar #'first bindings)
-              .,body))
-     (,name .,(mapcar #'second bindings))))
 
 (defmacro defparser (name () &body (form))
   (with-gensyms (state cok cfail eok efail)
@@ -172,6 +177,73 @@
 
 
 ;; Parser combinators
+
+(defun parse-map (function &rest parsers)
+  (lambda (state cok cfail eok efail)
+    (nlet iter ((state state)
+                (eok eok)
+                (efail efail)
+                (args ())
+                (parsers-left parsers))
+      (if (null parsers-left)
+          (funcall eok (apply function (nreverse args)) state (unknown state))
+          (funcall (first parsers-left) state
+                   ;; consumed-ok
+                   (lambda (x state failure)
+                     (declare (ignore failure))
+                     (iter state cok cfail
+                           (cons x args)
+                           (rest parsers-left)))
+                   ;; consumed-fail
+                   cfail
+                   ;; empty-ok
+                   (lambda (x state failure)
+                     (declare (ignore failure))
+                     (iter state eok efail
+                           (cons x args)
+                           (rest parsers-left)))
+                   ;; empty-fail
+                   efail)))))
+
+(defun parse-progn (&rest parsers)
+  (lambda (state cok cfail eok efail)
+    (nlet iter ((state state)
+                (eok eok)
+                (efail efail)
+                (last-arg nil)
+                (parsers-left parsers))
+      (if (null parsers-left)
+          (funcall eok last-arg state (unknown state))
+          (funcall (first parsers-left) state
+                   ;; consumed-ok
+                   (lambda (x state failure)
+                     (declare (ignore failure))
+                     (iter state cok cfail
+                           x
+                           (rest parsers-left)))
+                   ;; consumed-fail
+                   cfail
+                   ;; empty-ok
+                   (lambda (x state failure)
+                     (declare (ignore failure))
+                     (iter state eok efail
+                           x
+                           (rest parsers-left)))
+                   ;; empty-fail
+                   efail)))))
+
+(defun parse-prog1 (first-parser &rest rest-parsers)
+  (parse-let ((first first-parser)
+              (last (apply #'parse-progn rest-parsers)))
+    (declare (ignore last))
+    first))
+
+(defun parse-prog2 (first-parser second-parser &rest rest-parsers)
+  (parse-let ((first first-parser)
+              (second second-parser)
+              (last (apply #'parse-progn rest-parsers)))
+    (declare (ignore first last))
+    second))
 
 
 
@@ -227,3 +299,14 @@
                                   (first input) (rest input))
                    cok cfail
                    (rest elms-left))))))))
+
+(defparameter +eof-parser+
+  (lambda (state cok cfail eok efail)
+    (declare (ignore cok cfail))
+    (with-accessors ((input state-input)) state
+      (if (null input)
+          (funcall eok nil state (unknown state))
+          (funcall efail (expected state :end-of-file "EOF"))))))
+
+(defun eof-parser ()
+  +eof-parser+)
