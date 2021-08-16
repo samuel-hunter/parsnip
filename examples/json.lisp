@@ -198,7 +198,8 @@
 
 
 (defun decode-json (stream)
-  (parse *text* (read-stream-content-into-string stream)))
+  (parse *text* stream))
 
 (defun decode-json-from-string (string)
-  (parse *text* string))
+  (with-input-from-string (stream string)
+    (parse *text* stream)))

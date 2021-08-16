@@ -63,7 +63,7 @@
 (defstruct (state (:predicate nil)
                   (:copier nil))
   (cursor (make-cursor))
-  input)
+  stream)
 
 (defstruct (failure (:predicate nil)
                     (:copier nil))
@@ -71,7 +71,7 @@
 
 (defun failure (state format-control &rest format-args)
   (make-failure :state state
-                :messages (list (apply #'format nil format-control format-args))))
+                :messages (list (lambda () (apply #'format nil format-control format-args)))))
 
 (defun unexpected (state name)
   (failure state "Unexpected element ~A" name))
@@ -92,19 +92,21 @@
   "Signal an error depending on the given failure."
   (error 'parser-error
          :cursor (state-cursor (failure-state failure))
-         :messages (Failure-messages failure)))
+         :messages (mapcar #'funcall (failure-messages failure))))
 
 (defun ok-value (x state failure)
   (declare (ignore state failure))
   x)
 
-(defun parse (parser input)
+(defun parse (parser stream)
   "Run a parser through a list of elements and raise any failures as a condition."
-  (funcall parser (make-state :input input)
+  (funcall parser (make-state :stream stream)
            #'ok-value
            #'failure-error
            #'ok-value
            #'failure-error))
+
+;; Continuations
 
 
 
@@ -117,8 +119,8 @@
         ((null bindings-left)
 
          (check-type binding list)
-         (unless (= 2 (length binding))
-           (error "~S binding must have a length of 2" macro-name))
+         (unless (<= 1 (length binding) 2)
+           (error "~S binding must have between 1 or 2 elements" macro-name))
          (check-type (first binding) symbol)))))
 
 (defmacro nlet (name (&rest bindings) &body body)
@@ -126,49 +128,6 @@
   `(labels ((,name ,(mapcar #'first bindings)
               .,body))
      (,name .,(mapcar #'second bindings))))
-
-(defun first-elm (seq)
-  (elt seq 0))
-
-(defun rest-elms (seq)
-  (etypecase seq
-    (vector (multiple-value-bind (displaced-to displaced-offset)
-              (array-displacement seq)
-              (make-array (1- (length seq))
-                          :element-type (array-element-type seq)
-                          :displaced-to (or displaced-to seq)
-                          :displaced-index-offset (1+ displaced-offset))))
-    (list (rest seq))))
-
-(defmacro with-elms ((first rest) seq &body body)
-  (once-only (seq)
-    `(let ((,first (first-elm ,seq))
-           (,rest (rest-elms ,seq)))
-       .,body)))
-
-
-
-;; Primitives
-
-(defun advance-state (state advance-cursor e es)
-  (make-state :cursor (funcall advance-cursor (state-cursor state) e)
-              :input es))
-
-(defun token-prim (printer advance-cursor pred)
-  (lambda (state cok cfail eok efail)
-    (declare (ignore cfail eok))
-    (with-accessors ((input state-input)
-                     (cursor state-cursor)) state
-      (if (zerop (length input))
-          (funcall efail (unexpected state "EOF"))
-          (with-elms (e es) input
-            (if (funcall pred e)
-                (funcall cok
-                         e
-                         (advance-state state advance-cursor e es)
-                         (unknown state))
-                (funcall efail
-                         (unexpected state (funcall printer e)))))))))
 
 
 
@@ -402,11 +361,18 @@
 (defun parse-try (parser)
   (lambda (state cok cfail eok efail)
     (declare (ignore cfail))
-    (funcall parser state
-             cok      ;; consumed-ok
-             efail    ;; consumed-failure
-             eok      ;; error-ok
-             efail))) ;; error-failure
+    (let ((old-position (file-position (state-stream state))))
+      (funcall parser state
+               ;; consumed-ok
+               cok
+               ;; consumed-failure
+               (lambda (failure)
+                 (file-position (state-stream state) old-position)
+                 (funcall efail failure))
+               ;; empty-ok
+               eok
+               ;; empty-failure
+               efail))))
 
 (defun parse-tag (name parser)
   (lambda (state cok cfail eok efail)
@@ -425,6 +391,30 @@
 ;; Character parsers
 
 (defparameter +tab-width+ 8)
+
+(defun advance-state (state advance-cursor c)
+  (make-state :cursor (funcall advance-cursor (state-cursor state) c)
+              :stream (state-stream state)))
+
+(defun token-prim (printer advance-cursor pred)
+  (declare (optimize (speed 3)))
+  (lambda (state cok cfail eok efail)
+    (declare (optimize (speed 3))
+             (ignore cfail eok))
+    (with-accessors ((stream state-stream)
+                     (cursor state-cursor)) state
+      (let ((c (peek-char nil stream nil)))
+        (cond
+          ((null c)
+           (funcall efail (unexpected state "EOF")))
+          ((funcall pred c)
+           (read-char stream)
+           (funcall cok
+                    c
+                    (advance-state state advance-cursor c)
+                    (unknown state)))
+          (t (funcall efail
+                      (unexpected state (funcall printer c)))))))))
 
 (defun advance-cursor-char (cursor char)
   (with-accessors ((pos cursor-pos)
@@ -460,27 +450,27 @@
     (nlet iter ((state state)
                 (eok eok)
                 (efail efail)
-                (string-left string))
-      (with-accessors ((input state-input)
+                (n 0))
+      (with-accessors ((stream state-stream)
                        (cursor state-cursor)) state
-        (cond
-          ((zerop (length string-left))
-           (funcall eok string state (unknown state)))
-          ((zerop (length input))
-           (funcall efail (expected state (format nil "\"~A\"" string))))
-          (t (with-elms (e es) input
-               (if (char= e (aref string-left 0))
-                   (iter (advance-state state #'advance-cursor-char
-                                        e es)
-                         cok cfail
-                         (rest-elms string-left))
-                   (funcall efail (expected state (Format nil "\"~A\"" string)))))))))))
+        (if (= n (length string))
+            (funcall eok string state (unknown state))
+            (let ((c (peek-char nil stream nil)))
+              (cond
+                ((null c)
+                 (funcall efail (unexpected state "EOF")))
+                ((char= c (aref string n))
+                 (read-char stream)
+                 (iter (advance-state state #'advance-cursor-char c)
+                       cok cfail
+                       (1+ n)))
+                (t (funcall efail (expected state (Format nil "\"~A\"" string)))))))))))
 
 (defparameter +eof-parser+
   (lambda (state cok cfail eok efail)
     (declare (ignore cok cfail))
-    (with-accessors ((input state-input)) state
-      (if (zerop (length input))
+    (with-accessors ((stream state-stream)) state
+      (if (null (peek-char nil stream nil))
           (funcall eok nil state (unknown state))
           (funcall efail (expected state "EOF"))))))
 
