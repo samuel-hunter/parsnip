@@ -3,6 +3,11 @@
 
 ![Parsnip brand doodle](./brand.png)
 
+**NOTE:** This is a defunct branch of Parsnip, made to evalaute whether rewriting the library using callbacks (similar to Haskell's `parsec` library) is worth it.
+Conclusion is, it's not performant.
+What used to be ~2.5x slower than cl-json is now ~8x slower.
+I'm moving back to value-oriented decisionmaking instead, and keeping this branch open just to look at in the future.
+
 Quickly combine small parsers together.
 
 Other parser combinator libraries I've found in the Common Lisp ecosystem is either extremely macro-heavy, or warns that it is not production-ready.
