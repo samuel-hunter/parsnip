@@ -69,6 +69,7 @@
                     (:copier nil))
   state messages)
 
+(declaim (inline failure unexpected expected unknown))
 (defun failure (state format-control &rest format-args)
   (make-failure :state state
                 :messages (list (lambda () (apply #'format nil format-control format-args)))))
@@ -392,15 +393,18 @@
 
 (defparameter +tab-width+ 8)
 
+(declaim (inline advance-state))
 (defun advance-state (state advance-cursor c)
   (make-state :cursor (funcall advance-cursor (state-cursor state) c)
               :stream (state-stream state)))
 
 (defun token-prim (printer advance-cursor pred)
-  (declare (optimize (speed 3)))
+  (declare (optimize speed))
+  (check-type printer function)
+  (check-type advance-cursor function)
+  (check-type pred function)
   (lambda (state cok cfail eok efail)
-    (declare (optimize (speed 3))
-             (ignore cfail eok))
+    (declare (ignore cfail eok) (optimize speed))
     (with-accessors ((stream state-stream)
                      (cursor state-cursor)) state
       (let ((c (peek-char nil stream nil)))
