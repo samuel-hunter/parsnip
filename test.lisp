@@ -48,7 +48,7 @@
           'parser-error)
 
     (is char= #\a
-        (parser-error-element
+        (parser-error-expected
           (capture-parse-error parser "z")))))
 
 (define-test predicate-parser
@@ -69,7 +69,7 @@
           'parser-error)
 
     (is eq #'digit-char-p
-        (parser-error-element
+        (parser-error-expected
           (capture-parse-error parser "z")))))
 
 (define-test string-parser
@@ -90,7 +90,7 @@
           'parser-error)
 
     (is string= "foo"
-        (parser-error-element
+        (parser-error-expected
           (capture-parse-error parser "bar")))))
 
 (define-test parser-error
@@ -98,7 +98,7 @@
   (let* ((parser (char-parser #\a))
          (err (capture-parse-error parser "z")))
     (is equal #\a
-        (parser-error-element err))
+        (parser-error-expected err))
 
     (of-type stream (stream-error-stream err))))
 
@@ -111,7 +111,7 @@
           'parser-error)
 
     (is eq :eof
-        (parser-error-element
+        (parser-error-expected
           (capture-parse-error parser "foo"))))
 
   (is eq :eof
@@ -128,7 +128,7 @@
           'parser-error)
 
     (is char= #\a
-        (parser-error-element
+        (parser-error-expected
           (capture-parse-error parser "z"))))
 
   (let ((parser (parse-map #'list
@@ -210,7 +210,7 @@
           'parser-error)
 
     (is char= #\c
-        (parser-error-element
+        (parser-error-expected
           (capture-parse-error abc "abz")))
 
     (fail (parse-string abc "az")
@@ -220,7 +220,7 @@
           'parser-error)
 
     (is char= #\a
-        (parser-error-element
+        (parser-error-expected
           (capture-parse-error abc "z")))
 
     (fail (parse-string abc "bc")
@@ -285,7 +285,7 @@
           'parser-error)
 
     (is equal '(#\a #\b #\c)
-        (parser-error-element
+        (parser-error-expected
           (capture-parse-error abc "z"))))
 
   (let ((foobar (parse-or (string-parser "foo")
@@ -414,7 +414,7 @@
         (parse-string parser "a"))
 
     (is eq :the-letter-a
-        (parser-error-element
+        (parser-error-expected
           (capture-parse-error parser "z")))))
 
 (define-test parse-let
