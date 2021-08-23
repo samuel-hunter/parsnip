@@ -51,9 +51,28 @@
 
 
 
-;; Result are cons cells tagged in the CAR and payload values in the CDR.
-;; Ok value: (TAG . VALUE)
-;; Fail value: (TAG STREAM EXPECTED . RETURN-TRACE)
+;; Results are cons cells tagged in the CAR and payload values in the CDR.
+;; Ok value: (TAG . VALUE)  (tags are :COK or :EOK)
+;; Fail value: (TAG STREAM EXPECTED . RETURN-TRACE)  (tags are :CFAIL or :EFAIL)
+;; The C or E prefix means whether input was consumed or empty.
+
+;; I experimented with three types of results:
+;; - Results as structs
+;; - Results as lists
+;; - Use callbacks instead of wrapping result-values
+;;
+;; I tried callbacks a la Haskell parsec (see the callback-evaluation branch on
+;; Sourcehut), and the performance at the time was horrid (~8x slower than
+;; cl-json instead of ~2.5x slower). Granted, I also changed how errors looked,
+;; but a look into sb-sprof showed that most time was spent in the primitive
+;; parser. So, that's off the table for now.
+;;
+;; Structs vs Lists were comparatively marginal, performance-wise. I can go for
+;; structs if I have to, though tinkering with both, I like how `parsecase`
+;; clauses look when going through the code, so I'm sticking with that. I'm
+;; also "hand-coding" the list structure instead of using a defstruct with a
+;; list type, because the way list-structs are structured are *juuust* slightly
+;; off enough that I preferred going away from it.
 
 (declaim (inline cok eok cfail efail
                  ok-value fail-stream fail-expected fail-return-trace
@@ -103,6 +122,8 @@
   (or (cfailp result)
       (efailp result)))
 
+;; Helper macros
+
 (defmacro eparsecase (result &body clauses)
   `(ecase (car ,result)
      .,clauses))
@@ -135,6 +156,9 @@
             (push (quote ,name) (fail-return-trace ,result))
             ,result))))))
 
+;; Toplevel evaluation converts results into something a little more
+;; front-facing for library consumers.
+
 (define-condition parser-error (stream-error)
   ((expected :initarg :expected :reader parser-error-expected)
    (return-trace :initarg :return-trace :reader parser-error-return-trace))
@@ -165,7 +189,7 @@
 ;; Primitive Parselets
 
 (defun char-parser (char)
-  "Return a parser that accepts the given character value."
+  "Consume and return the given character."
   (lambda (stream)
     (let ((actual-char (peek-char nil stream nil)))
       (cond
@@ -176,8 +200,7 @@
         (t (efail stream char))))))
 
 (defun predicate-parser (predicate)
-  "Return a parser that accepts a character if the given predicate returns
-   true."
+  "Consume and return a character that passes the given predicate."
   (lambda (stream)
     (let ((actual-char (peek-char nil stream nil)))
       (cond
@@ -188,8 +211,7 @@
         (t (efail stream predicate))))))
 
 (defun string-parser (string)
-  "Return a parser that accepts the given string value. May partially parse on
-   fail."
+  "Consume and return the given text. May partially parse on failure."
   (lambda (stream)
     (let* ((actual-string (make-string (length string)))
            (chars-read (read-sequence actual-string stream)))
@@ -201,6 +223,7 @@
         (t (cfail stream string))))))
 
 (defun eof-parser (&optional value)
+  "Return the given value (or NIL) if at EOF."
   (lambda (stream)
     (if (null (peek-char nil stream nil))
         (cok value)
@@ -211,8 +234,7 @@
 ;; Combinators
 
 (defun parse-map (function &rest parsers)
-  "Compose multiple parsers to run in sequence, and apply the function to all
-   parsers' values."
+  "Run the parsers in sequence and apply the given function to all results."
   (lambda (stream)
     (do ((parsers-left parsers (rest parsers-left))
          arguments)
@@ -226,8 +248,7 @@
              (return result)))))))
 
 (defun parse-progn (&rest parsers)
-  "Compose multiple parsers to run in sequence, returning the last parser's
-   value."
+  "Run the parsers in sequence and return the last result."
   (assert (plusp (length parsers)))
   (lambda (stream)
     (do ((parsers-left parsers (rest parsers-left))
@@ -245,8 +266,7 @@
             ((:cfail :efail) (return result)))))))
 
 (defun parse-prog1 (first-parser &rest parsers)
-  "Compose multiple parsers to run in sequence, returning the first parser's
-   value."
+  "Run the parsers in sequence and return the last result."
   (when (null parsers)
     (return-from parse-prog1 first-parser))
 
@@ -265,13 +285,11 @@
                            final-result))))))))))
 
 (defun parse-prog2 (first-parser second-parser &rest parsers)
-  "Compose multple parsers to run in sequence, returning the second parser's
-   value."
+  "Run the parsers in sequence and return the second result."
   (parse-progn first-parser (apply 'parse-prog1 second-parser parsers)))
 
 (defun parse-collect (parser)
-  "Enhance the parser to keep running until fail, and collect the results.
-   Passes through any partial-parse falures."
+  "Run until failure, and then return the collected results."
   (lambda (stream)
     (do ((last-result (funcall parser stream) (funcall parser stream))
          values)
@@ -282,8 +300,7 @@
         (push (ok-value last-result) values))))
 
 (defun parse-collect1 (parser)
-  "Enhance the parser to keep running until fail, and collect AT LEAST one
-   result. Passes through any partial-parse fail."
+  "Run until failure, and then return at LEAST one collected result."
   (let ((collect-parser (parse-collect parser)))
     (lambda (stream)
       (with-ok (funcall parser stream) (head)
@@ -291,7 +308,7 @@
           (cok (cons head tail)))))))
 
 (defun parse-collect-string (parser)
-  "Enhance the parser to keep collecting chars until fail, and return a string."
+  "Run until failure, and then return the collected characters as a string."
   (lambda (stream)
     (do ((last-result (funcall parser stream) (funcall parser stream))
          (string (make-array 0
@@ -305,8 +322,7 @@
         (vector-push-extend (ok-value last-result) string))))
 
 (defun parse-reduce (function parser initial-value)
-  "Enhance the parser to keep running until fail, and reduce the results
-   into a single value. Passes through any partial-parse fail."
+  "Run until failure, and then reduce the results into one value."
   (lambda (stream)
     (do ((last-result (funcall parser stream) (funcall parser stream))
          (value initial-value (funcall function value (ok-value last-result))))
@@ -316,8 +332,7 @@
              last-result)))))
 
 (defun parse-take (times parser)
-  "Enhance the partial to run EXACTLY the given number of times and collect the
-   results. Passes through any partial-parse fail."
+  "Run and collect EXACTLY the given number of results."
   (check-type times (integer 0 *))
   (labels ((take-iter (n stream)
              (if (zerop n)
@@ -330,7 +345,7 @@
         (cok list)))))
 
 (defun parse-or (&rest parsers)
-  "Attempts each parser in order until one succeeds. Passes through any
+  "Attempt each parser in order until one succeeds. Passes through any
    partial-parse fail."
   (lambda (stream)
     (do ((parsers-left parsers (rest parsers-left))
@@ -345,15 +360,14 @@
               (push (fail-expected result) expected-elements)))))))
 
 (defun parse-optional (parser &optional default)
-  "Enhance the parser to resume from an error with a default value if it did
-   not consume input."
+  "Resume from a failure with a default value."
   (lambda (stream)
     (parsecase (funcall parser stream)
       (:efail (eok default)))))
 
 (defun parse-try (parser)
-  "Enahnce the parser to try to rewind the stream on partial-parse fail.
-   Only works on seekable streams."
+  "Try to rewind the stream on any partial-parse failure. Only works on
+   seekable streams."
   (lambda (stream)
     (let ((old-position (file-position stream))
           (result (funcall parser stream)))
@@ -363,7 +377,7 @@
           (efail stream (fail-expected result)))))))
 
 (defun parse-tag (tag parser)
-  "Reports fails as expecting the given tag instead of an element"
+  "Report fails as expecting the given tag instead of an element"
   (lambda (stream)
     (let ((result (funcall parser stream)))
       (parsecase result
@@ -401,6 +415,7 @@
 ;; Complex Parselets
 
 (defun digit-parser (&optional (radix 10))
+  "Consume a single digit and return its integer value."
   (check-type radix (integer 2 36))
   (parse-tag (cons :digit radix)
              (parse-map (lambda (ch)
@@ -411,6 +426,7 @@
                         (predicate-parser (rcurry #'digit-char-p radix)))))
 
 (defun integer-parser (&optional (radix 10))
+  "Consume one or more digits and return its integer value."
   (parse-tag (cons :integer radix)
              (parse-map (curry #'reduce (lambda (num dig) (+ (* num radix) dig)))
                         (parse-collect1 (digit-parser radix)))))

@@ -8,38 +8,6 @@ Quickly combine small parsers together.
 Other parser combinator libraries I've found in the Common Lisp ecosystem is either extremely macro-heavy, or warns that it is not production-ready.
 I don't trust third-party libraries that don't trust themselves, so I've made my own, going for a simple interface with a production-readiness goal.
 
-## Road to Production-Readiness
-
-The general API is figured out -- it should change minimally through to 0.1.0.
-Most everything else (quickstart documentation, benchmarking) can now follow.
-
-- [ ] The external API is stable, including primitive parsers and parser combinators
-  - [x] All parsers are limited to a non-seeking stream with a 1-character peek buffer (outside `parse-try`)
-  - [x] Some robust way to figure out parser debugging.
-  	I've decided to go for return traces during failures. It seems to work pretty well!
-  - [x] Parselets for common idioms (like digits and numbers).
-  - [x] Inestigate multi-stage parsers with generic streams.
-        I know that many parsers work by having a lexing stage, and then a tree-building stage.
-	I experimented with this with the JSON example to see if it made any improvement, and the speed slowed down from 2.5x to ~5x.
-- [ ] Code tests
-  - [x] Every external function is unit-tested.
-  - [x] 95% code coverage in `parsnip.lisp` as reported by `sb-cover`.
-        True as of commit `0b7a7173cd5b54799378a2b306035bc1feef13e3` - 95.7% coverage in expressions, and 100% coverage in branches
-  - [ ] Benchmarks should have a reasonable speed.
-        I don't plan for this library to be the fastest, but it shouldn't be snailing either.
-	The current speed of the JSON example is about 2.5x slower than cl-json.
-	This is close to my target of being only twice as slow.
-- [x] Documentation
-  - [x] Code examples with real formats
-    - [X] JSON
-    - [x] Some C-family programming language
-  - [x] Docstrings in all external functions and macros
-  - [x] Quickstart within the README
-  - [x] A full reference somewhere, maybe within the README
-- [ ] Peer review. I need more than myself looking at the project. Many eyes are welcome :)
-- [ ] Time * Exposure.
-- [x] A nice drawing of a parsnip :)
-
 ## Contributions
 
 Any comments, questions, issues, or patches are greatly appreciated!
@@ -111,6 +79,38 @@ You can use `defparser` to define a parser as a function, enabling forward-refer
 
 The [test suite](./test.lisp) shows how each function works, and how it's expected to perform.
 
+## Road to Production-Readiness
+
+The general API is figured out -- it should change minimally through to 0.1.0.
+Most everything else (quickstart documentation, benchmarking) can now follow.
+
+- [ ] The external API is stable, including primitive parsers and parser combinators
+  - [x] All parsers are limited to a non-seeking stream with a 1-character peek buffer (outside `parse-try`)
+  - [x] Some robust way to figure out parser debugging.
+  	I've decided to go for return traces during failures. It seems to work pretty well!
+  - [x] Parselets for common idioms (like digits and numbers).
+  - [x] Inestigate multi-stage parsers with generic streams.
+        I know that many parsers work by having a lexing stage, and then a tree-building stage.
+	I experimented with this with the JSON example to see if it made any improvement, and the speed slowed down from 2.5x to ~5x.
+- [ ] Code tests
+  - [x] Every external function is unit-tested.
+  - [x] 95% code coverage in `parsnip.lisp` as reported by `sb-cover`.
+        True as of commit `0b7a7173cd5b54799378a2b306035bc1feef13e3` - 95.7% coverage in expressions, and 100% coverage in branches
+  - [ ] Benchmarks should have a reasonable speed.
+        I don't plan for this library to be the fastest, but it shouldn't be snailing either.
+	The current speed of the JSON example is about 2.5x slower than cl-json.
+	This is close to my target of being only twice as slow.
+- [x] Documentation
+  - [x] Code examples with real formats
+    - [X] JSON
+    - [x] Some C-family programming language
+  - [x] Docstrings in all external functions and macros
+  - [x] Quickstart within the README
+  - [x] A full reference somewhere, maybe within the README
+- [ ] Peer review. I need more than myself looking at the project. Many eyes are welcome :)
+- [ ] Time * Exposure.
+- [x] A nice drawing of a parsnip :)
+
 ## Examples
 
 The [JSON example](./examples/json.lisp) matches extremely close to the grammar notation of the [RFC8259 JSON specification](https://datatracker.ietf.org/doc/html/rfc8259).
@@ -121,7 +121,7 @@ It is meant to show a very small yet turing-complete C-family language.
 
 I plan to be writing a parser for [ABC notation v2.1](http://abcnotation.com/wiki/abc:standard:v2.1) after I feel reasonably finished with this project.
 
-## Full Reference
+## Parser Reference
 
 The library provides parsers and parser combinators.
 Parsers accept character input and return some value.
@@ -133,50 +133,50 @@ Parsers may fail, but unless it was partially parsed, some parser combinators li
 
 Parselets are parsers meant to be building blocks for greater parsers:
 
-**char-parser** *char* - Return a parser that accepts the given character value.
+**char-parser** *char* - Consume and return the given character.
 
-**predicate-parser** *predicate* - Return a parser that accepts the character if, applied to the provided predicate, the predicate returns true.
+**predicate-parser** *predicate* - Consume and return a character that passes the given predicate.
 
-**string-parser** *string* - Return a parser that accepts the given string value. May partially parse on failure.
+**string-parser** *string* - Consume and return the given text. May partially parse on failure.
 
-**eof-parser** *value* - Return a parser that accepts the end of a file and returns the given value.
+**eof-parser** *&optional value* - Return the given value (or NIL) if at EOF.
 
 Non-primitive parselets include:
 
-**digit-parser** *&optional (radix 10)* - Return a parser that accepts a digit and returns its number value.
+**digit-parser** *&optional (radix 10)* - Consume a single digit and return its integer value.
 
-**integer-parser** *&optional (radix 10)* - Return a parser that accepts a series of digits and returns its number value.
+**integer-parser** *&optional (radix 10)* - Consume one or more digits and return its integer value.
 
 ### Parser Combinators
 
 Parser combinators take in one or more parsers and return a parser with enhanced behavior:
 
-**parse-map** *function &rest parsers* - Compose multiple parsers to run in sequence, and apply the function to all parsers' values.
+**parse-map** *function &rest parsers* - Run the parsers in sequence and apply the given function to all results.
 
-**parse-progn** *&optional parsers* - Compose multiple parsers to run in sequence, returning the last parser's value.
+**parse-progn** *&optional parsers* - Run the parsers in sequence and return the last result.
 
-**parse-prog1** *&rest parsers* - Compose multiple parsers to run in sequence, returning the first parser's value.
+**parse-prog1** first-parser *&rest parsers* - Run the parsers in sequence and return the first result
 
-**parse-prog2** *&rest parsers* - Compose multiple parsers to run in sequence, returning the second parser's value.
+**parse-prog2** *&rest parsers* - Run the parsers in sequence and return the second result.
 
-**parse-collect** *parser* - Enhance the parser to keep running and collect results until failure.
+**parse-collect** *parser* - Run until failure, and then return the collected results.
 
-**parse-collect1** *parser* - Enhance the parser to keep running and collect at least one result until failure.
+**parse-collect1** *parser* - Run until failure, and then return at LEAST one collected result.
 
-**parse-collect-string** *parser* - Enhance the parser to keep collecting chars until failure, and return a string.
+**parse-collect-string** *parser* - RUn until failure, and then return the collected characters as a string.
 
-**parse-reduce** *function parser initial-value* - Enhance the parser to keep running and reduce all results into a single value until failure.
+**parse-reduce** *function parser initial-value* - Run until failure, and then reduce the results into one value.
 
-**parse-take** *times parser* - Enhance the parser to keep running and collect EXACTLY the given number of times.
+**parse-take** *times parser* - Run and collect EXACTLY the given number of results.
 
-**parse-or** *&rest parsers* - Attempts each given parser in order until one succeeds.
+**parse-or** *&rest parsers* - Attempt each given parser in order until one succeeds.
 
-**parse-optional** *&rest parsers* - Enhance the parser to resume from a failure with a default value.
+**parse-optional** *&rest parsers* - Resume from a failure with a default value.
 
-**parse-try** *parser* - Enhance the parser to try to rewind the stream on any partial-parse failure.
+**parse-try** *parser* - Try to rewind the stream on any partial-parse failure.
 Only works on seekable streams, and is the only parser that can recover from partial-parse failures.
 
-**parse-tag** *tag parser* - Enhance the parser's failures to report expecting the given tag instead of an element.
+**parse-tag** *tag parser* - Report fails as expecting the given tag instead of an element.
 
 ### Parser Macros
 
