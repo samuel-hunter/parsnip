@@ -51,9 +51,14 @@
 
 
 
+;; Result are cons cells tagged in the CAR and payload values in the CDR.
+;; Ok value: (TAG . VALUE)
+;; Fail value: (TAG STREAM EXPECTED . RETURN-TRACE)
+
 (declaim (inline cok eok cfail efail
                  ok-value fail-stream fail-expected fail-return-trace
-                 (setf fail-expected) (setf fail-return-trace)))
+                 (setf fail-expected) (setf fail-return-trace)
+                 cokp eokp cfailp efailp okp failp))
 (defun cok (value)
   `(:cok .,value))
 
@@ -82,19 +87,53 @@
 (defun (setf fail-return-trace) (new-value fail)
   (setf (cdddr fail) new-value))
 
-(deftype cok ()
-  `(cons (eql :cok) *))
-(deftype eok ()
-  `(cons (eql :eok) *))
-(deftype cfail ()
-  `(cons (eql :cfail) *))
-(deftype efail ()
-  `(cons (eql :efail) *))
+(defun cokp (result)
+  (eq (car result) :cok))
+(defun eokp (result)
+  (eq (car result) :eok))
+(defun cfailp (result)
+  (eq (car result) :cfail))
+(defun efailp (result)
+  (eq (car result) :efail))
 
-(deftype ok ()
-  `(or cok eok))
-(deftype fail ()
-  `(or cfail efail))
+(defun okp (result)
+  (or (cokp result)
+      (eokp result)))
+(defun failp (result)
+  (or (cfailp result)
+      (efailp result)))
+
+(defmacro eparsecase (result &body clauses)
+  `(ecase (car ,result)
+     .,clauses))
+
+(defmacro parsecase (result &body clauses)
+  (once-only (result)
+    `(case (car ,result)
+       ,@clauses
+       (otherwise ,result))))
+
+(defmacro with-ok (form (&optional var) &body body)
+  (once-only (form)
+    `(eparsecase ,form
+       ((:cok :eok)
+        ,(if var
+             `(let ((,var (ok-value ,form)))
+                .,body)
+             `(progn .,body)))
+       ((:efail :cfail)
+        ,form))))
+
+(defmacro with-trace ((name) &body body)
+  (with-gensyms (result)
+    `(let ((,result (progn .,body)))
+       (eparsecase ,result
+         ((:cok :eok)
+          ,result)
+         ((:cfail :efail)
+          (progn
+            (push (quote ,name) (fail-return-trace ,result))
+            ,result))))))
 
 (define-condition parser-error (stream-error)
   ((expected :initarg :expected :reader parser-error-expected)
@@ -117,9 +156,9 @@
 (defun parse (parser stream)
   "Run a parser through a given stream and raise any fails as a condition."
   (let ((result (funcall parser stream)))
-    (etypecase result
-      (ok (ok-value result))
-      (fail (error-fail result)))))
+    (eparsecase result
+      ((:cok :eok) (ok-value result))
+      ((:cfail :efail) (error-fail result)))))
 
 
 
@@ -169,38 +208,6 @@
 
 
 
-;; Internal helper macros
-
-(defmacro with-ok (form (&optional var) &body body)
-  (once-only (form)
-    `(etypecase ,form
-       (ok ,(if var
-                `(let ((,var (ok-value ,form)))
-                   .,body)
-                `(progn .,body)))
-       (fail ,form))))
-
-(defmacro with-trace ((name) &body body)
-  (with-gensyms (result)
-    `(let ((,result (progn .,body)))
-       (etypecase ,result
-         (ok ,result)
-         (fail (progn
-                 (push (quote ,name) (fail-return-trace ,result))
-                 ,result))))))
-
-(defmacro eparsecase (result &body clauses)
-  `(ecase (car ,result)
-     .,clauses))
-
-(defmacro parsecase (result &body clauses)
-  (once-only (result)
-    `(case (car ,result)
-       ,@clauses
-       (otherwise ,result))))
-
-
-
 ;; Combinators
 
 (defun parse-map (function &rest parsers)
@@ -231,11 +238,11 @@
              (cok (ok-value final-result))
              final-result))
         (let ((result (funcall (first parsers-left) stream)))
-          (etypecase result
-            (cok (setf consumed t
-                       final-result result))
-            (eok (setf final-result result))
-            (fail (return result)))))))
+          (eparsecase result
+            (:cok (setf consumed t
+                        final-result result))
+            (:eok (setf final-result result))
+            ((:cfail :efail) (return result)))))))
 
 (defun parse-prog1 (first-parser &rest parsers)
   "Compose multiple parsers to run in sequence, returning the first parser's
@@ -252,7 +259,7 @@
              (eparsecase final-result
                ((:cok :eok) first-result)
                (:cfail final-result)
-               (:efail (if (typep first-result 'cok)
+               (:efail (if (cokp first-result)
                            (cfail (fail-stream final-result)
                                   (fail-expected final-result))
                            final-result))))))))))
@@ -268,9 +275,10 @@
   (lambda (stream)
     (do ((last-result (funcall parser stream) (funcall parser stream))
          values)
-        ((typep last-result 'fail)
-         (parsecase last-result
-           (:efail (cok (nreverse values)))))
+        ((failp last-result)
+         (if (efailp last-result)
+             (cok (nreverse values))
+             last-result))
         (push (ok-value last-result) values))))
 
 (defun parse-collect1 (parser)
@@ -290,9 +298,10 @@
                              :element-type 'character
                              :adjustable t
                              :fill-pointer 0)))
-        ((typep last-result 'fail)
-         (parsecase last-result
-           (:efail (cok string))))
+        ((failp last-result)
+         (if (efailp last-result)
+             (cok string)
+             last-result))
         (vector-push-extend (ok-value last-result) string))))
 
 (defun parse-reduce (function parser initial-value)
@@ -301,9 +310,10 @@
   (lambda (stream)
     (do ((last-result (funcall parser stream) (funcall parser stream))
          (value initial-value (funcall function value (ok-value last-result))))
-        ((typep last-result 'fail)
-         (parsecase last-result
-           (:efail (cok value)))))))
+        ((failp last-result)
+         (if (efailp last-result)
+             (cok value)
+             last-result)))))
 
 (defun parse-take (times parser)
   "Enhance the partial to run EXACTLY the given number of times and collect the
