@@ -41,7 +41,6 @@
            #:parse-tag
 
            #:parse-let
-           #:parse-defer
            #:defparser
 
            #:digit-parser
@@ -395,12 +394,6 @@
   `(parse-map (lambda ,(mapcar #'first bindings)
                 ,@body)
               ,@(mapcar #'second bindings)))
-
-(defmacro parse-defer (form)
-  "Defer evaluating the parser-returning FORM until the parser is called.
-   Useful for circular-referencing parsers."
-  (with-gensyms (stream)
-    `(lambda (,stream) (funcall ,form ,stream))))
 
 (defmacro defparser (name () &body (form))
   "Define a parser as a function.
