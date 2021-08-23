@@ -5,8 +5,8 @@
 
 Quickly combine small parsers together.
 
-Other parser combinator libraries I've found in the Common Lisp ecosystem are either extremely macro-heavy, or warn that they are not production-ready.
-I don't trust third-party libraries that don't trust themselves, so I've made my own, going for a simple interface with a production-readiness goal.
+Other parser combinator libraries I've found in the Common Lisp ecosystem are either too macro-heavy for my tastes, or warn that they are not production-ready.
+I don't trust third-party libraries that don't trust themselves, and so I've made my own, going for a simple interface with a production-readiness goal.
 
 ## Contributions
 
@@ -113,17 +113,17 @@ Most everything else (quickstart documentation, benchmarking) can now follow.
 
 ## Examples
 
-The [JSON example](./examples/json.lisp) matches extremely close to the grammar notation of the [RFC8259 JSON specification](https://datatracker.ietf.org/doc/html/rfc8259).
-Outside of a couple outliers (the value grammar is moved to the end), the code is laid out nearly section-by-section as stated in the RFC.
+The [JSON example](./examples/json.lisp) matches close to the grammar notation of the [RFC8259 JSON specification](https://datatracker.ietf.org/doc/html/rfc8259).
+Outside of a couple outliers (e.g. the value definition is moved to the end), the code is laid out nearly section-by-section as stated in the RFC.
 
-The [Tiny C example](./examples/tiny-c.lisp) demonstrates an extremely stripped down version of C with no types and little control structures.
+The [Tiny C example](./examples/tiny-c.lisp) demonstrates a stripped down version of C with no types, no preprocessing, and only an `if` control structure.
 It is meant to show a very small yet turing-complete C-family language.
 
 I plan to be writing a parser for [ABC notation v2.1](http://abcnotation.com/wiki/abc:standard:v2.1) after I feel reasonably finished with this project.
 
 ## Parser Reference
 
-The library provides parsers and parser combinators.
+The library provides parsers, ways to combine them, and a `parser-error`.
 Parsers accept character input and return some value.
 Parser combinators take in parsers and return other parsers with enhanced behavior, like parsing multiple times or returning a different result.
 
@@ -202,3 +202,14 @@ Only works on seekable streams, and is the only parser that can recover from par
     (make-instance 'identifier :letter letter
                                :number (parse-integer (coerce digits 'string)))))
 ```
+
+### `parser-error`
+
+If a parser fails to read text, it signals a `parser-error`, a subclass of `stream-error`, with these readers:
+
+**stream-error-stream** - Part of the CL standard, returns the stream the parser was reading from.
+
+**parser-error-expected** - Return the value that the parser error expected to read. May be overridden with `parser-tag`.
+
+**parser-error-return-trace** - Every parser defined with `defparser` adds its symbol to the return trace as the error bubbles up.
+The return trace, along with `(file-position stream)`, should assist developers debug their parsers

@@ -52,7 +52,7 @@
 
 ;; Results are cons cells tagged in the CAR and payload values in the CDR.
 ;; Ok value: (TAG . VALUE)  (tags are :COK or :EOK)
-;; Fail value: (TAG STREAM EXPECTED . RETURN-TRACE)  (tags are :CFAIL or :EFAIL)
+;; Fail value: (TAG EXPECTED . RETURN-TRACE)  (tags are :CFAIL or :EFAIL)
 ;; The C or E prefix means whether input was consumed or empty.
 
 ;; I experimented with three types of results:
@@ -74,36 +74,33 @@
 ;; off enough that I preferred going away from it.
 
 (declaim (inline cok eok cfail efail
-                 ok-value fail-stream fail-expected fail-return-trace
+                 ok-value fail-expected fail-return-trace
                  (setf fail-expected) (setf fail-return-trace)
                  cokp eokp cfailp efailp okp failp))
 (defun cok (value)
-  `(:cok .,value))
+  `(:cok . ,value))
 
 (defun eok (value)
-  `(:eok .,value))
+  `(:eok . ,value))
 
-(defun cfail (stream expected)
-  `(:cfail ,stream ,expected . nil))
+(defun cfail (expected)
+  `(:cfail ,expected . nil))
 
-(defun efail (stream expected)
-  `(:efail ,stream ,expected . nil))
+(defun efail (expected)
+  `(:efail ,expected . nil))
 
 (defun ok-value (ok)
   (cdr ok))
 
-(defun fail-stream (fail)
-  (cadr fail))
-
 (defun fail-expected (fail)
-  (caddr fail))
+  (cadr fail))
 (defun (setf fail-expected) (new-value fail)
-  (setf (caddr fail) new-value))
+  (setf (cadr fail) new-value))
 
 (defun fail-return-trace (fail)
-  (cdddr fail))
+  (cddr fail))
 (defun (setf fail-return-trace) (new-value fail)
-  (setf (cdddr fail) new-value))
+  (setf (cddr fail) new-value))
 
 (defun cokp (result)
   (eq (car result) :cok))
@@ -169,10 +166,10 @@
                        err-stream
                        (ignore-errors (file-position err-stream)))))))
 
-(defun error-fail (fail)
+(defun error-fail (fail stream)
   "Signal an error depending on the given fail."
   (error 'parser-error
-         :stream (fail-stream fail)
+         :stream stream
          :expected (fail-expected fail)
          :return-trace (fail-return-trace fail)))
 
@@ -181,7 +178,7 @@
   (let ((result (funcall parser stream)))
     (eparsecase result
       ((:cok :eok) (ok-value result))
-      ((:cfail :efail) (error-fail result)))))
+      ((:cfail :efail) (error-fail result stream)))))
 
 
 
@@ -193,10 +190,10 @@
     (let ((actual-char (peek-char nil stream nil)))
       (cond
         ((null actual-char)
-         (efail stream char))
+         (efail char))
         ((char= char actual-char)
          (cok (read-char stream)))
-        (t (efail stream char))))))
+        (t (efail char))))))
 
 (defun predicate-parser (predicate)
   "Consume and return a character that passes the given predicate."
@@ -204,10 +201,10 @@
     (let ((actual-char (peek-char nil stream nil)))
       (cond
         ((null actual-char)
-         (efail stream predicate))
+         (efail predicate))
         ((funcall predicate actual-char)
          (cok (read-char stream)))
-        (t (efail stream predicate))))))
+        (t (efail predicate))))))
 
 (defun string-parser (string)
   "Consume and return the given text. May partially parse on failure."
@@ -216,17 +213,17 @@
            (chars-read (read-sequence actual-string stream)))
       (cond
         ((zerop chars-read)
-         (efail stream string))
+         (efail string))
         ((string= actual-string string)
          (cok actual-string))
-        (t (cfail stream string))))))
+        (t (cfail string))))))
 
 (defun eof-parser (&optional value)
   "Return the given value (or NIL) if at EOF."
   (lambda (stream)
     (if (null (peek-char nil stream nil))
         (cok value)
-        (efail stream :eof))))
+        (efail :eof))))
 
 
 
@@ -279,8 +276,7 @@
                ((:cok :eok) first-result)
                (:cfail final-result)
                (:efail (if (cokp first-result)
-                           (cfail (fail-stream final-result)
-                                  (fail-expected final-result))
+                           (cfail (fail-expected final-result))
                            final-result))))))))))
 
 (defun parse-prog2 (first-parser second-parser &rest parsers)
@@ -350,7 +346,7 @@
     (do ((parsers-left parsers (rest parsers-left))
          expected-elements)
         ((null parsers-left)
-         (efail stream (nreverse expected-elements)))
+         (efail (nreverse expected-elements)))
         (let ((result (funcall (first parsers-left) stream)))
           (eparsecase result
             ((:cok :eok :cfail)
@@ -373,7 +369,7 @@
       (parsecase result
         (:cfail
           (file-position stream old-position)
-          (efail stream (fail-expected result)))))))
+          (efail (fail-expected result)))))))
 
 (defun parse-tag (tag parser)
   "Report fails as expecting the given tag instead of an element"
