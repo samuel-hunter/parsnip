@@ -440,18 +440,6 @@
   (fail (eval '(parse-let ((10 20 030 05 i5025 9258))
                  whatever))))
 
-(define-test parse-defer
-  :depends-on (char-parser)
-  (let* (the-char
-         (parser (parse-defer (char-parser the-char))))
-    (setf the-char #\a)
-    (is char= #\a
-        (parse-string parser "a"))
-
-    (setf the-char #\b)
-    (is char= #\b
-        (parse-string parser "b"))))
-
 (define-test digit-parser
   (let ((decimalparser (digit-parser))
         (hexparser (digit-parser 16)))

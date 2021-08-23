@@ -5,7 +5,7 @@
 
 Quickly combine small parsers together.
 
-Other parser combinator libraries I've found in the Common Lisp ecosystem is either extremely macro-heavy, or warns that it is not production-ready.
+Other parser combinator libraries I've found in the Common Lisp ecosystem are either extremely macro-heavy, or warn that they are not production-ready.
 I don't trust third-party libraries that don't trust themselves, so I've made my own, going for a simple interface with a production-readiness goal.
 
 ## Contributions
@@ -189,8 +189,6 @@ Only works on seekable streams, and is the only parser that can recover from par
     (make-instance 'identifier :letter letter
                                :number (parse-integer (coerce digits 'string)))))
 ```
-
-**parse-defer** *form* - Return a parser that defers evaluating itself until it is called.
 
 **defparser** *name () form* - Define a parser as a function:
 
