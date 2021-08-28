@@ -196,12 +196,18 @@ They can then be referenced with function designators:
 
 ### `parser-error`
 
-If a parser fails to read text, it signals a `parser-error`, a subclass of `stream-error`, with these readers:
+If a parser fails to read text, it signals a `parser-error`, a subclass of `stream-error` (outside ABCL), with these readers:
 
-**stream-error-stream** - Part of the CL standard, returns the stream the parser was reading from.
+**parser-error-stream** *parser-error*- Return the stream the parser was reading from.
+Impl's outside ABCL may also use **stream-error-stream**.
+
+**stream-error-stream** *parser-error* - Part of the CL standard, returns the stream the parser was reading from.
 This function is broken on ABCL.
 
-**parser-error-expected** - Return the value that the parser error expected to read. May be overridden with `parser-tag`.
+**parser-error-expected** *parser-error* - Return the value that the parser error expected to read. May be overridden with `parser-tag`.
 
-**parser-error-return-trace** - Every parser defined with `defparser` adds its symbol to the return trace as the error bubbles up.
+**parser-error-return-trace** *parser-error* - Every parser defined with `defparser` adds its symbol to the return trace as the error bubbles up.
 The return trace, along with `(file-position stream)`, should assist developers debug their parsers
+
+For some reason, while a parser-error might have been `typep` to a `stream-error` in ABCL, `stream-error-stream` would raise an error, reporting that the parser error is not of type `stream-error`.
+To compensate, the parent condition is moved from `stream-error` to `error` (to not give programs the idea that it can call `stream-error-stream`), and the function `parser-error-stream` is available on all implementations.
