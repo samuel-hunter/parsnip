@@ -3,10 +3,8 @@ environment:
   ROSWELL_RELEASE: 21.06.14.110
   ROSWELL_HOME: /home/build/.roswell
   ROSWELL_BRANCH: release
-  LISP: sbcl-bin
 packages:
 - wget
-- rsync
 secrets:
 - 1ee8ca54-5b4d-4d53-97cd-52fbb9606387
 sources:
@@ -22,15 +20,22 @@ tasks:
     echo "(:tree \"$HOME/parsnip\")" > $ASDF_REG_CONF_DIR/ci.conf
 
     # Use lisp impl and print configuration
-    ros install $LISP
-    ros use $LISP
+    ros install sbcl-bin
+    ros install ccl-bin
+    ros use sbcl-bin
     ros config
 - build: |
     PATH=~/roswell:$PATH
-    # Fetch deps and compile lisps
+    # Fetch deps
     ros --eval '(ql:quickload :parsnip/test)'
-- test: |
+- test-sbcl: |
     PATH=~/roswell:$PATH
+    ros use sbcl-bin
+    ros --system parachute --system parsnip/test \
+      --eval '(setf *debugger-hook* (lambda (e h) (print e) (uiop:quit 1))) (parachute:test-toplevel :xyz.shunter.parsnip.test)'
+- test-ccl: |
+    PATH=~/roswell:$PATH
+    ros use ccl-bin
     ros --system parachute --system parsnip/test \
       --eval '(setf *debugger-hook* (lambda (e h) (print e) (uiop:quit 1))) (parachute:test-toplevel :xyz.shunter.parsnip.test)'
 triggers:
