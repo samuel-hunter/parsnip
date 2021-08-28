@@ -79,36 +79,23 @@ You can use `defparser` to define a parser as a function, enabling forward-refer
 
 The [test suite](./test.lisp) shows how each function works, and how it's expected to perform.
 
-## Road to Production-Readiness
+## Road to Public-Readiness
 
 The general API is figured out -- it should change minimally through to 0.1.0.
 Most everything else (quickstart documentation, benchmarking) can now follow.
 
-- [ ] The external API is stable, including primitive parsers and parser combinators
-  - [x] All parsers are limited to a non-seeking stream with a 1-character peek buffer (outside `parse-try`)
-  - [x] Some robust way to figure out parser debugging.
-  	I've decided to go for return traces during failures. It seems to work pretty well!
-  - [x] Parselets for common idioms (like digits and numbers).
-  - [x] Inestigate multi-stage parsers with generic streams.
-        I know that many parsers work by having a lexing stage, and then a tree-building stage.
-	I experimented with this with the JSON example to see if it made any improvement, and the speed slowed down from 2.5x to ~5x.
+- [ ] The external API should be stable, including all primitive parsers and parser combinators.
+      I feel very close to this goal.
+      After trying different paradigms and styles, I'll feel confident to finally mark this down after using this library myself on a parser.
 - [ ] Code tests
   - [x] Every external function is unit-tested.
-  - [x] 95% code coverage in `parsnip.lisp` as reported by `sb-cover`.
-        True as of commit `0b7a7173cd5b54799378a2b306035bc1feef13e3` - 95.7% coverage in expressions, and 100% coverage in branches
-  - [ ] Benchmarks should have a reasonable speed.
-        I don't plan for this library to be the fastest, but it shouldn't be snailing either.
+  - [x] 95%+ code coverage in `parsnip.lisp` as reported by `sb-cover`.
+  - [ ] Benchmarks should have a reasonable speed (goal: the json example should be no more than 2x slower than cl-json).
 	The current speed of the JSON example is about 2.5x slower than cl-json.
-	This is close to my target of being only twice as slow.
 - [x] Documentation
-  - [x] Code examples with real formats
-    - [X] JSON
-    - [x] Some C-family programming language
-  - [x] Docstrings in all external functions and macros
-  - [x] Quickstart within the README
-  - [x] A full reference somewhere, maybe within the README
-- [ ] Peer review. I need more than myself looking at the project. Many eyes are welcome :)
-- [ ] Time * Exposure.
+- [ ] Peer review. I need more than myself looking at the project.
+      Many eyes are welcome :)
+- [ ] Time x Exposure.
 - [x] A nice drawing of a parsnip :)
 
 ## Examples
@@ -119,7 +106,7 @@ Outside of a couple outliers (e.g. the value definition is moved to the end), th
 The [Tiny C example](./examples/tiny-c.lisp) demonstrates a stripped down version of C with no types, no preprocessing, and only an `if` control structure.
 It is meant to show a very small yet turing-complete C-family language.
 
-I plan to be writing a parser for [ABC notation v2.1](http://abcnotation.com/wiki/abc:standard:v2.1) after I feel reasonably finished with this project.
+I plan to be writing a parser for [ABC notation v2.1](http://abcnotation.com/wiki/abc:standard:v2.1) in the future.
 
 ## Parser Reference
 
@@ -163,11 +150,11 @@ Parser combinators take in one or more parsers and return a parser with enhanced
 
 **parse-collect1** *parser* - Run until failure, and then return at LEAST one collected result.
 
-**parse-collect-string** *parser* - RUn until failure, and then return the collected characters as a string.
+**parse-collect-string** *parser* - Run until failure, and then return the collected characters as a string.
 
 **parse-reduce** *function parser initial-value* - Run until failure, and then reduce the results into one value.
 
-**parse-take** *times parser* - Run and collect EXACTLY the given number of results.
+**parse-take** *times parser* - Run and collect **exactly** the given number of results.
 
 **parse-or** *&rest parsers* - Attempt each given parser in order until one succeeds.
 
@@ -190,7 +177,8 @@ Only works on seekable streams, and is the only parser that can recover from par
                                :number (parse-integer (coerce digits 'string)))))
 ```
 
-**defparser** *name () form* - Define a parser as a function:
+**defparser** *name () form* - Define a parser as a function.
+They can then be referenced with function designators:
 
 ```lisp
 (defparser alpha-parser ()
@@ -198,9 +186,12 @@ Only works on seekable streams, and is the only parser that can recover from par
 
 (defparser id-parser ()
   (parse-let ((letter #'alpha-parser)
-              (digits (parse-collect1 (predicate-parser #'digit-char-p))))
+              (digits 'digits-parser))
     (make-instance 'identifier :letter letter
                                :number (parse-integer (coerce digits 'string)))))
+
+(defparser digits-parser ()
+  (parse-collect1 (predicate-parser #'digit-char-p)))
 ```
 
 ### `parser-error`
@@ -208,6 +199,7 @@ Only works on seekable streams, and is the only parser that can recover from par
 If a parser fails to read text, it signals a `parser-error`, a subclass of `stream-error`, with these readers:
 
 **stream-error-stream** - Part of the CL standard, returns the stream the parser was reading from.
+This function is broken on ABCL.
 
 **parser-error-expected** - Return the value that the parser error expected to read. May be overridden with `parser-tag`.
 
