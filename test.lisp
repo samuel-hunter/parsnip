@@ -100,7 +100,9 @@
     (is equal #\a
         (parser-error-expected err))
 
-    (of-type stream (stream-error-stream err))))
+    (of-type stream (parser-error-stream err))
+
+    #-abcl (of-type stream (stream-error-stream err))))
 
 (define-test eof-parser
   (let ((parser (eof-parser)))
