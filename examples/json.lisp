@@ -88,11 +88,6 @@
 
 ;; string := quotation char+ quotation
 
-(defun add-to-string (string c)
-  "Add a character to an adjustable string and return it."
-  (vector-push-extend c string)
-  string)
-
 (defparameter *string*
   (parse-prog2
     (char-parser #\")
