@@ -131,7 +131,7 @@
   (parse-let ((lefthand #'primary-expr)
               (op-and-righthand (parse-optional
                                   (parse-let ((op *mul-op*)
-                                              (righthand #'mul-expr))
+                                              (righthand 'mul-expr))
                                     (list op righthand)))))
     (if op-and-righthand
         (list* :mul-expr lefthand op-and-righthand)
@@ -147,7 +147,7 @@
   (parse-let ((lefthand #'mul-expr)
               (op-and-righthand (parse-optional
                                   (parse-let ((op *add-op*)
-                                              (righthand #'add-expr))
+                                              (righthand 'add-expr))
                                     (list op righthand)))))
     (if op-and-righthand
         (list* :add-expr lefthand op-and-righthand)
@@ -163,7 +163,7 @@
   (parse-let ((lefthand #'add-expr)
               (op-and-righthand (parse-optional
                                   (parse-let ((op (parse-try *cmp-op*))
-                                              (righthand #'cmp-expr))
+                                              (righthand 'cmp-expr))
                                     (list op righthand)))))
     (if op-and-righthand
         (list* :cmp-expr lefthand op-and-righthand)

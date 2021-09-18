@@ -37,6 +37,7 @@
            #:parse-collect-string
            #:parse-reduce
            #:parse-take
+           #:parse-skip-many
 
            #:parse-try
            #:parse-tag
@@ -51,107 +52,11 @@
 
 
 
-;; Results are cons cells tagged in the CAR and payload values in the CDR.
-;; Ok value: (TAG . VALUE)  (tags are :COK or :EOK)
-;; Fail value: (TAG EXPECTED . RETURN-TRACE)  (tags are :CFAIL or :EFAIL)
-;; The C or E prefix means whether input was consumed or empty.
+(deftype function-designator ()
+  '(or function symbol))
 
-;; I experimented with three types of results:
-;; - Results as structs
-;; - Results as lists
-;; - Use callbacks instead of wrapping result-values
-;;
-;; I tried callbacks a la Haskell parsec (see the callback-evaluation branch on
-;; Sourcehut), and the performance at the time was horrid (~8x slower than
-;; cl-json instead of ~2.5x slower). Granted, I also changed how errors looked,
-;; but a look into sb-sprof showed that most time was spent in the primitive
-;; parser. So, that's off the table for now.
-;;
-;; Structs vs Lists were comparatively marginal, performance-wise. I can go for
-;; structs if I have to, though tinkering with both, I like how `parsecase`
-;; clauses look when going through the code, so I'm sticking with that. I'm
-;; also "hand-coding" the list structure instead of using a defstruct with a
-;; list type, because the way list-structs are structured are *juuust* slightly
-;; off enough that I preferred going away from it.
-
-(declaim (inline cok eok cfail efail
-                 ok-value fail-expected fail-return-trace
-                 (setf fail-expected) (setf fail-return-trace)
-                 cokp eokp cfailp efailp okp failp))
-(defun cok (value)
-  `(:cok . ,value))
-
-(defun eok (value)
-  `(:eok . ,value))
-
-(defun cfail (expected)
-  `(:cfail ,expected . nil))
-
-(defun efail (expected)
-  `(:efail ,expected . nil))
-
-(defun ok-value (ok)
-  (cdr ok))
-
-(defun fail-expected (fail)
-  (cadr fail))
-(defun (setf fail-expected) (new-value fail)
-  (setf (cadr fail) new-value))
-
-(defun fail-return-trace (fail)
-  (cddr fail))
-(defun (setf fail-return-trace) (new-value fail)
-  (setf (cddr fail) new-value))
-
-(defun cokp (result)
-  (eq (car result) :cok))
-(defun eokp (result)
-  (eq (car result) :eok))
-(defun cfailp (result)
-  (eq (car result) :cfail))
-(defun efailp (result)
-  (eq (car result) :efail))
-
-(defun okp (result)
-  (or (cokp result)
-      (eokp result)))
-(defun failp (result)
-  (or (cfailp result)
-      (efailp result)))
-
-;; Helper macros
-
-(defmacro eparsecase (result &body clauses)
-  `(ecase (car ,result)
-     .,clauses))
-
-(defmacro parsecase (result &body clauses)
-  (once-only (result)
-    `(case (car ,result)
-       ,@clauses
-       (otherwise ,result))))
-
-(defmacro with-ok (form (&optional var) &body body)
-  (once-only (form)
-    `(eparsecase ,form
-       ((:cok :eok)
-        ,(if var
-             `(let ((,var (ok-value ,form)))
-                .,body)
-             `(progn .,body)))
-       ((:efail :cfail)
-        ,form))))
-
-(defmacro with-trace ((name) &body body)
-  (with-gensyms (result)
-    `(let ((,result (progn .,body)))
-       (eparsecase ,result
-         ((:cok :eok)
-          ,result)
-         ((:cfail :efail)
-          (progn
-            (push (quote ,name) (fail-return-trace ,result))
-            ,result))))))
+(deftype parser ()
+  'function-designator)
 
 ;; Toplevel evaluation converts results into something a little more
 ;; front-facing for library consumers.
@@ -179,19 +84,24 @@
 (defun parser-error-stream (parser-error)
   (stream-error-stream parser-error))
 
-(defun error-fail (fail stream)
+(defun signal-failure (stream expected return-trace)
   "Signal an error depending on the given fail."
   (error 'parser-error
          :stream stream
-         :expected (fail-expected fail)
-         :return-trace (fail-return-trace fail)))
+         :expected expected
+         :return-trace return-trace))
 
 (defun parse (parser stream)
   "Run a parser through a given stream and raise any fails as a condition."
-  (let ((result (funcall parser stream)))
-    (eparsecase result
-      ((:cok :eok) (ok-value result))
-      ((:cfail :efail) (error-fail result stream)))))
+  (check-type parser parser)
+  (flet ((take-value (stream value)
+           (declare (ignore stream))
+           value))
+    (funcall parser stream
+             #'take-value
+             #'take-value
+             #'signal-failure
+             #'signal-failure)))
 
 
 
@@ -199,44 +109,51 @@
 
 (defun char-parser (char)
   "Consume and return the given character."
-  (lambda (stream)
-    (let ((actual-char (peek-char nil stream nil)))
+  (check-type char character)
+  (lambda (stream eok cok efail cfail)
+    (declare (ignore eok cfail))
+    (let ((actual (peek-char nil stream nil)))
       (cond
-        ((null actual-char)
-         (efail char))
-        ((char= char actual-char)
-         (cok (read-char stream)))
-        (t (efail char))))))
+        ((null actual)
+         (funcall efail stream char ()))
+        ((char= char actual)
+         (funcall cok stream (read-char stream)))
+        (t (funcall efail stream char ()))))))
 
 (defun predicate-parser (predicate)
   "Consume and return a character that passes the given predicate."
-  (lambda (stream)
-    (let ((actual-char (peek-char nil stream nil)))
+  (check-type predicate function-designator)
+  (lambda (stream eok cok efail cfail)
+    (declare (ignore eok cfail))
+    (let ((actual (peek-char nil stream nil)))
       (cond
-        ((null actual-char)
-         (efail predicate))
-        ((funcall predicate actual-char)
-         (cok (read-char stream)))
-        (t (efail predicate))))))
+        ((null actual)
+         (funcall efail stream predicate ()))
+        ((funcall predicate actual)
+         (funcall cok stream (read-char stream)))
+        (t (funcall efail stream predicate ()))))))
 
 (defun string-parser (string)
   "Consume and return the given text. May partially parse on failure."
-  (lambda (stream)
-    (let* ((actual-string (make-string (length string)))
-           (chars-read (read-sequence actual-string stream)))
+  (check-type string string)
+  (lambda (stream eok cok efail cfail)
+    (declare (ignore eok))
+    (let* ((actual (make-string (length string)))
+           (chars-read (read-sequence actual stream)))
       (cond
         ((zerop chars-read)
-         (efail string))
-        ((string= actual-string string)
-         (cok actual-string))
-        (t (cfail string))))))
+         (funcall efail stream string ()))
+        ((string= actual string)
+         (funcall cok stream actual))
+        (t (funcall cfail stream string ()))))))
 
 (defun eof-parser (&optional value)
   "Return the given value (or NIL) if at EOF."
-  (lambda (stream)
+  (lambda (stream eok cok efail cfail)
+    (declare (ignore cok cfail))
     (if (null (peek-char nil stream nil))
-        (cok value)
-        (efail :eof))))
+        (funcall eok stream value)
+        (funcall efail stream :eof ()))))
 
 
 
@@ -244,153 +161,231 @@
 
 (defun parse-map (function &rest parsers)
   "Run the parsers in sequence and apply the given function to all results."
-  (lambda (stream)
-    (do ((parsers-left parsers (rest parsers-left))
-         arguments)
-        ((null parsers-left)
-         (cok (apply function (nreverse arguments))))
-        (let ((result (funcall (first parsers-left) stream)))
-          (eparsecase result
-            ((:cok :eok)
-             (push (ok-value result) arguments))
-            ((:efail :cfail)
-             (return result)))))))
+  (lambda (stream eok cok efail cfail)
+    (labels ((iter (stream args parsers-left eok)
+               (if (null parsers-left)
+                   (funcall eok stream (apply function (nreverse args)))
+                   (funcall
+                     (first parsers-left) stream
+                     ;; eok
+                     (lambda (stream value)
+                       (iter stream (cons value args) (rest parsers-left)
+                             eok))
+                     ;; cok
+                     (lambda (stream value)
+                       (iter stream (cons value args) (rest parsers-left)
+                             cok))
+                     ;; efail
+                     efail
+                     ;; cfail
+                     cfail))))
+      (iter stream () parsers eok))))
 
 (defun parse-progn (&rest parsers)
   "Run the parsers in sequence and return the last result."
-  (assert (plusp (length parsers)))
-  (lambda (stream)
-    (do ((parsers-left parsers (rest parsers-left))
-         consumed
-         final-result)
-        ((null parsers-left)
-         (if consumed
-             (cok (ok-value final-result))
-             final-result))
-        (let ((result (funcall (first parsers-left) stream)))
-          (eparsecase result
-            (:cok (setf consumed t
-                        final-result result))
-            (:eok (setf final-result result))
-            ((:cfail :efail) (return result)))))))
+  (lambda (stream eok cok efail cfail)
+    (labels ((iter (stream arg parsers-left eok efail)
+               (if (null parsers-left)
+                   (funcall eok stream arg)
+                   (funcall
+                     (first parsers-left) stream
+                     ;; eok
+                     (rcurry #'iter (rest parsers-left) eok efail)
+                     ;; cok
+                     (rcurry #'iter (rest parsers-left) cok cfail)
+                     ;; efail
+                     efail
+                     ;; cfail
+                     cfail))))
+      (iter stream nil parsers eok efail))))
 
 (defun parse-prog1 (first-parser &rest parsers)
   "Run the parsers in sequence and return the last result."
-  (when (null parsers)
-    (return-from parse-prog1 first-parser))
-
-  (let ((inner-parser (apply 'parse-progn parsers)))
-    (lambda (stream)
-      (let ((first-result (funcall first-parser stream)))
-        (parsecase first-result
-          ((:eok :cok)
-           (let ((final-result (funcall inner-parser stream)))
-             (eparsecase final-result
-               ((:cok :eok) first-result)
-               (:cfail final-result)
-               (:efail (if (cokp first-result)
-                           (cfail (fail-expected final-result))
-                           final-result))))))))))
+  (parse-map (lambda (first last)
+               (declare (ignore last))
+               first)
+             first-parser
+             (apply 'parse-progn parsers)))
 
 (defun parse-prog2 (first-parser second-parser &rest parsers)
   "Run the parsers in sequence and return the second result."
-  (parse-progn first-parser (apply 'parse-prog1 second-parser parsers)))
+  (parse-prog1 (parse-progn first-parser second-parser)
+               (apply 'parse-progn parsers)))
 
 (defun parse-collect (parser)
   "Run until failure, and then return the collected results."
-  (lambda (stream)
-    (do ((last-result (funcall parser stream) (funcall parser stream))
-         values)
-        ((failp last-result)
-         (if (efailp last-result)
-             (cok (nreverse values))
-             last-result))
-        (push (ok-value last-result) values))))
+  (check-type parser parser)
+  (lambda (stream eok cok efail cfail)
+    (declare (ignore efail))
+    (labels ((iter (stream args eok)
+               (funcall
+                 parser stream
+                 ;; eok
+                 (lambda (stream value)
+                   (declare (ignore stream value))
+                   (error "Unexpected eok in parse-collect"))
+                 ;; cok
+                 (lambda (stream value)
+                   (iter stream (cons value args) cok))
+                 ;; efail
+                 (lambda (stream expected return-trace)
+                   (declare (ignore expected return-trace))
+                   (funcall eok stream (nreverse args)))
+                 ;; cfail
+                 cfail)))
+      (iter stream () eok))))
 
 (defun parse-collect1 (parser)
   "Run until failure, and then return at LEAST one collected result."
-  (let ((collect-parser (parse-collect parser)))
-    (lambda (stream)
-      (with-ok (funcall parser stream) (head)
-        (with-ok (funcall collect-parser stream) (tail)
-          (cok (cons head tail)))))))
+  (check-type parser parser)
+  (parse-map #'cons parser (parse-collect parser)))
 
 (defun parse-collect-string (parser)
   "Run until failure, and then return the collected characters as a string."
-  (lambda (stream)
-    (do ((last-result (funcall parser stream) (funcall parser stream))
-         (string (make-array 0
-                             :element-type 'character
-                             :adjustable t
-                             :fill-pointer 0)))
-        ((failp last-result)
-         (if (efailp last-result)
-             (cok string)
-             last-result))
-        (vector-push-extend (ok-value last-result) string))))
+  (check-type parser parser)
+  (lambda (stream eok cok efail cfail)
+    (declare (ignore efail))
+    (let ((string (make-array 0
+                              :element-type 'character
+                              :adjustable t
+                              :fill-pointer 0)))
+      (labels ((iter (stream eok)
+                 (funcall
+                   parser stream
+                   ;; eok
+                   (lambda (stream value)
+                     (declare (ignore stream value))
+                     (error "Unexpected eok in parse-collect-string"))
+                   ;; cok
+                   (lambda (stream value)
+                     (vector-push-extend value string)
+                     (iter stream cok))
+                   ;; efail
+                   (lambda (stream expected return-trace)
+                     (declare (ignore expected return-trace))
+                     (funcall eok stream string))
+                   ;; cfail
+                   cfail)))
+        (iter stream eok)))))
 
 (defun parse-reduce (function parser initial-value)
   "Run until failure, and then reduce the results into one value."
-  (lambda (stream)
-    (do ((last-result (funcall parser stream) (funcall parser stream))
-         (value initial-value (funcall function value (ok-value last-result))))
-        ((failp last-result)
-         (if (efailp last-result)
-             (cok value)
-             last-result)))))
+  (check-type function function-designator)
+  (check-type parser parser)
+  (lambda (stream eok cok efail cfail)
+    (declare (ignore efail))
+    (labels ((iter (stream arg eok)
+               (funcall
+                 parser stream
+                 ;; eok
+                 (lambda (stream value)
+                   (declare (ignore stream value))
+                   (error "Unexpected eok on parse-reduce"))
+                 ;; cok
+                 (lambda (stream value)
+                   (iter stream (funcall function arg value) cok))
+                 ;; efail
+                 (lambda (stream expected return-trace)
+                   (declare (ignore expected return-trace))
+                   (funcall eok stream arg))
+                 ;; cfail
+                 cfail)))
+      (iter stream initial-value eok))))
 
 (defun parse-take (times parser)
   "Run and collect EXACTLY the given number of results."
   (check-type times (integer 0 *))
-  (labels ((take-iter (n stream)
-             (if (zerop n)
-                 (cok ())
-                 (with-ok (funcall parser stream) (head)
-                   (with-ok (take-iter (1- n) stream) (tail)
-                     (cok (cons head tail)))))))
-    (lambda (stream)
-      (with-ok (take-iter times stream) (list)
-        (cok list)))))
+  (check-type parser parser)
+  (lambda (stream eok cok efail cfail)
+    (labels ((iter (stream times-left args eok efail)
+               (if (zerop times-left)
+                   (funcall eok stream (nreverse args))
+                   (funcall
+                     parser stream
+                     ;; eok
+                     (lambda (stream value)
+                       (declare (ignore stream value))
+                       (error "Unexected eok in parse-take"))
+                     ;; cok
+                     (lambda (stream value)
+                       (iter stream (1- times-left)
+                             (cons value args)
+                             cok cfail))
+                     ;; efail
+                     efail
+                     ;; cfail
+                     cfail))))
+      (iter stream times () eok efail))))
+
+(defun parse-skip-many (parser)
+  "Keep parsing until failure and pretend no input was consumed."
+  (check-type parser parser)
+  (lambda (stream eok cok efail cfail)
+    (declare (ignore cok))
+    (funcall (parse-reduce (constantly nil)
+                           parser nil)
+             stream
+             eok eok
+             efail cfail)))
 
 (defun parse-or (&rest parsers)
   "Attempt each parser in order until one succeeds. Passes through any
    partial-parse fail."
-  (lambda (stream)
-    (do ((parsers-left parsers (rest parsers-left))
-         expected-elements)
-        ((null parsers-left)
-         (efail (nreverse expected-elements)))
-        (let ((result (funcall (first parsers-left) stream)))
-          (eparsecase result
-            ((:cok :eok :cfail)
-             (return result))
-            (:efail
-              (push (fail-expected result) expected-elements)))))))
+  (lambda (stream eok cok efail cfail)
+    (labels ((iter (stream parsers-left expected-elements)
+               (if (null parsers-left)
+                   (funcall efail stream (nreverse expected-elements) ())
+                   (funcall
+                     (first parsers-left) stream
+                     eok cok
+                     ;; efail
+                     (lambda (stream expected return-trace)
+                       (declare (ignore return-trace))
+                       (iter stream (rest parsers-left)
+                             (cons expected expected-elements)))
+                     ;; cfail
+                     cfail))))
+      (iter stream parsers ()))))
 
 (defun parse-optional (parser &optional default)
   "Resume from a failure with a default value."
-  (lambda (stream)
-    (parsecase (funcall parser stream)
-      (:efail (eok default)))))
+  (check-type parser parser)
+  (lambda (stream eok cok efail cfail)
+    (declare (ignore efail))
+    (funcall parser stream
+             eok cok
+             ;; efail
+             (lambda (stream expected return-trace)
+               (declare (ignore expected return-trace))
+               (funcall eok stream default))
+             ;; cfail
+             cfail)))
 
 (defun parse-try (parser)
   "Try to rewind the stream on any partial-parse failure. Only works on
    seekable streams."
-  (lambda (stream)
-    (let ((old-position (file-position stream))
-          (result (funcall parser stream)))
-      (parsecase result
-        (:cfail
-          (file-position stream old-position)
-          (efail (fail-expected result)))))))
+  (lambda (stream eok cok efail cfail)
+    (declare (ignore cfail))
+    (let ((old-position (file-position stream)))
+      (funcall parser stream
+               eok cok
+               efail
+               ;; cfail
+               (lambda (stream expected return-trace)
+                 (file-position stream old-position)
+                 (funcall efail stream expected return-trace))))))
 
 (defun parse-tag (tag parser)
   "Report fails as expecting the given tag instead of an element"
-  (lambda (stream)
-    (let ((result (funcall parser stream)))
-      (parsecase result
-        ((:efail :cfail) (setf (fail-expected result) tag)
-                         result)))))
+  (check-type parser parser)
+  (flet ((replace-expected (fail stream expected return-trace)
+           (declare (ignore expected))
+           (funcall fail stream tag return-trace)))
+    (lambda (stream eok cok efail cfail)
+      (funcall parser stream
+        eok cok
+        (curry #'replace-expected efail)
+        (curry #'replace-expected cfail)))))
 
 (defun ensure-bindings (bindings)
   (dolist (binding bindings)
@@ -404,13 +399,25 @@
                 ,@body)
               ,@(mapcar #'second bindings)))
 
+(defun parse-trace (name parser)
+  (check-type parser parser)
+  (flet ((add-to-trace (fail stream expected return-trace)
+           (funcall fail stream expected (cons name return-trace))))
+    (lambda (stream eok cok efail cfail)
+      (funcall parser stream
+        eok cok
+        ;; efail
+        (curry #'add-to-trace efail)
+        ;; cfail
+        (curry #'add-to-trace cfail)))))
+
 (defmacro defparser (name () &body (form))
   "Define a parser as a function.
    Enables other parsers to forward-reference it before it is defined."
-  (with-gensyms (stream)
-    `(defun ,name (,stream)
-       (with-trace (,name)
-         (funcall ,form ,stream)))))
+  (with-gensyms (parser stream eok cok efail cfail)
+    `(let ((,parser (parse-trace ',name ,form)))
+       (defun ,name (,stream ,eok ,cok ,efail ,cfail)
+         (funcall ,parser ,stream ,eok ,cok ,efail ,cfail)))))
 
 
 
