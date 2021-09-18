@@ -437,25 +437,19 @@
                 ,@body)
               ,@(mapcar #'second bindings)))
 
-(defun parse-trace (name parser)
-  (check-type parser parser)
-  (flet ((add-to-trace (fail state expected return-trace)
-           (funcall fail state expected (cons name return-trace))))
-    (lambda (state eok cok efail cfail)
-      (funcall parser state
-        eok cok
-        ;; efail
-        (curry #'add-to-trace efail)
-        ;; cfail
-        (curry #'add-to-trace cfail)))))
+(defun add-to-trace (name fail old-state state expected return-trace)
+  (funcall fail state expected
+           (cons (list name (state-line old-state) (state-column old-state)) return-trace)))
 
 (defmacro defparser (name () &body (form))
   "Define a parser as a function.
    Enables other parsers to forward-reference it before it is defined."
-  (with-gensyms (parser state eok cok efail cfail)
-    `(let ((,parser (parse-trace ',name ,form)))
-       (defun ,name (,state ,eok ,cok ,efail ,cfail)
-         (funcall ,parser ,state ,eok ,cok ,efail ,cfail)))))
+  `(let ((parser ,form))
+     (defun ,name (state eok cok efail cfail)
+       (funcall parser state
+                eok cok
+                (curry #'add-to-trace ',name efail state)
+                (curry #'add-to-trace ',name cfail state)))))
 
 
 

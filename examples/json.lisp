@@ -86,7 +86,7 @@
 
 ;; string := quotation char+ quotation
 
-(defparameter *string*
+(defparser json-string ()
   (parse-prog2
     (char-parser #\")
     (parse-collect-string *char*)
@@ -96,38 +96,37 @@
 
 ;; member := string name-separator value
 (defparameter *member*
-  (parse-let ((name *string*)
+  (parse-let ((name 'json-string)
               (separator *name-separator*)
               (value 'value))
     (declare (ignore separator))
     (cons name value)))
 
 ;; object := begin-object [ member ( value-separator member ) + ] end-object
-(defparameter *object*
+(defparser json-object ()
   (parse-prog2
     *begin-object*
-    (parse-optional (parse-let ((first-member *member*)
-                                (other-members
-                                  (parse-collect (parse-progn
-                                                   *value-separator*
-                                                   *member*))))
-                      (cons first-member other-members))
-                    ())
+    (parse-optional
+      (parse-map #'cons
+                 *member*
+                 (parse-collect
+                   (parse-progn *value-separator*
+                                *member*)))
+      ())
     *end-object*))
-
 ;;; RFC 8259 § 5. Arrays
 
 ;; array := begin-array [ value ( value-separator value )+ ] end-array
-(defparameter *array*
+(defparser json-array ()
   (parse-prog2
     *begin-array*
-    (parse-optional (parse-let ((first-value 'value)
-                                (other-values
-                                  (parse-collect (parse-progn
-                                                   *value-separator*
-                                                   'value))))
-                      (cons first-value other-values))
-                    ())
+    (parse-optional
+      (parse-map #'cons
+                 'value
+                 (parse-collect
+                   (parse-progn *value-separator*
+                                'value)))
+      ())
     *end-array*))
 
 ;; RFC 8259 § 6. Numbers
@@ -150,7 +149,7 @@
                     num))))
 
 ;; number := [minus] int [frac] [exp]
-(defparameter *number*
+(defparser json-number ()
   (parse-let ((sign (parse-optional (char-parser #\-)))
               (whole-part (integer-parser))
               (frac-part (parse-optional *frac* 0))
@@ -177,10 +176,10 @@
     (literal-parser #\f "alse" :false)
     (literal-parser #\n "ull" :null)
     (literal-parser #\t "rue" :true)
-    *object*
-    *array*
-    *number*
-    *string*))
+    'json-object
+    'json-array
+    'json-number
+    'json-string))
 
 ;; text := ws value ws EOF
 (defparameter *text*

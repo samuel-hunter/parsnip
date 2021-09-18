@@ -304,3 +304,17 @@ May be overridden with `parser-tag`.
 
 Every parser defined with `defparser` adds its symbol to the return trace as the error bubbles up.
 The return trace, along with `(file-position stream)`, should assist developers debug their parsers
+
+```lisp
+(handler-case (decode-json-from-string "[10,20,{\"foo\":\"bar\",}]")
+           (parser-error (c)
+
+                         (format t "~A" c)
+                         (parser-error-return-trace c)))
+NIL:1:20: Expected #\" on #<STRING-INPUT-STREAM>
+((XYZ.SHUNTER.PARSNIP.EXAMPLES.JSON::VALUE 1 0)
+ (XYZ.SHUNTER.PARSNIP.EXAMPLES.JSON::JSON-ARRAY 1 0)
+ (XYZ.SHUNTER.PARSNIP.EXAMPLES.JSON::VALUE 1 7)
+ (XYZ.SHUNTER.PARSNIP.EXAMPLES.JSON::JSON-OBJECT 1 7)
+ (XYZ.SHUNTER.PARSNIP.EXAMPLES.JSON::JSON-STRING 1 20))
+```
