@@ -100,9 +100,12 @@
     (is equal #\a
         (parser-error-expected err))
 
-    (of-type stream (parser-error-stream err))
-
-    #-abcl (of-type stream (stream-error-stream err))))
+    ;; stream-error-stream on ABCL fails on subconditions to stream-error,
+    ;; because ABCL's code checks if the condition is directly instanceof
+    ;; ParserError (the Java class), instead of checking if it's typep to
+    ;; parser-error: https://github.com/armedbear/abcl/issues/388
+    #-ABCL
+    (of-type stream (stream-error-stream err))))
 
 (define-test eof-parser
   (let ((parser (eof-parser)))
