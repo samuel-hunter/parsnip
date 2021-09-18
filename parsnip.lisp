@@ -127,7 +127,7 @@
       ((char= c #\Tab)
        (new-state state line
                   (+ column +tab-width+
-                     (- (mod (1- column) +tab-width+)))))
+                     (- (mod column +tab-width+)))))
       (t
        (new-state state line (1+ column))))))
 
