@@ -97,8 +97,6 @@ However, you may have certain requirements for your own project which would hold
   I've targeted at least 95% coverage reported by `sb-cover` while developing this API, to limit erroneous behavior stemming from edge cases.
   After reworking the internal API, this dropped to ~80%.
   Every release includes a code coverage report, and every push to the repository triggers an automated system test.
-- Speed.
-  The example json decoder is about 2.5x as slow as `cl-json`, the most-used json decoder (according to `(ql:who-depends-on :cl-json)`).
 - Development Speed.
   Something similar to the example json decoder can be reasonably written within an afternoon.
   During anothe one of my projects, I was able to write a parser that describes notes, durations, note dots, pitches, beams, chords, and measure bars, within a similar amount of time.
@@ -155,9 +153,9 @@ Consume and return a character that passes the given predicate.
 
 Consume and return the given text. May partially parse on failure.
 
-### [Function] **eof-parser** *&optional value* - Return the given value (or NIL) if at EOF.
+### [Function] **eof-parser** *&optional value*
 
-Non-primitive parselets include:
+Return the given value (or NIL) if at EOF.
 
 ### [Function] **digit-parser** *&optional (radix 10)*
 Consume a single digit and return its integer value.
@@ -214,9 +212,32 @@ Resume from a failure with a default value.
 Try to rewind the stream on any partial-parse failure.
 Only works on seekable streams, and is the only parser that can recover from partial-parse failures.
 
+### [Function] **parse-skip-many** *parser*
+
+Keep parsing until failure and pretend no input was consumed.
+
+```lisp
+(defparser spaces ()
+  (parse-skip-many (char-parser #\Space)))
+
+(defun ws (parser)
+  (parse-prog2 spaces parser spaces))
+```
+
 ### [Function] **parse-tag** *tag parser*
 
 Report fails as expecting the given tag instead of an element.
+
+```lisp
+* (defparser digit ()
+    (parse-tag :igit (predicate-parser #'digit-char-p)))
+DIGIT
+
+* (with-input-from-string (s "a")
+    (parse #'digit s))
+Expected element :DIGIT on #<dynamic-extent STRING INPUT STREAM>
+[Condition of type PARSER-ERROR]
+```
 
 ### [Macro] **parse-let** *bindings &body body*
 
