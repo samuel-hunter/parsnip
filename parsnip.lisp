@@ -13,7 +13,6 @@
                 #:curry
                 #:rcurry)
   (:export #:parser-error
-           #:parser-error-stream
            #:parser-error-expected
            #:parser-error-return-trace
            #:parse
@@ -61,16 +60,8 @@
 ;; Toplevel evaluation converts results into something a little more
 ;; front-facing for library consumers.
 
-(define-condition parser-error (#-abcl stream-error
-                                #+abcl error)
-  (#+abcl (stream :initarg :stream :reader parser-error-stream
-                  :documentation
-                  "ABCL throws an error on stream-error-stream, even though
-                   parser-error would have been typep to stream-error. To
-                   compenstate, parser-error-stream is a more portable function
-                   while stream-error-stream remains available to other
-                   impl's.")
-   (expected :initarg :expected :reader parser-error-expected)
+(define-condition parser-error (stream-error)
+  ((expected :initarg :expected :reader parser-error-expected)
    (return-trace :initarg :return-trace :reader parser-error-return-trace))
   (:report (lambda (condition stream)
              (let ((expected (parser-error-expected condition))
@@ -79,10 +70,6 @@
                        expected
                        err-stream
                        (ignore-errors (file-position err-stream)))))))
-
-#-abcl
-(defun parser-error-stream (parser-error)
-  (stream-error-stream parser-error))
 
 (defun signal-failure (stream expected return-trace)
   "Signal an error depending on the given fail."

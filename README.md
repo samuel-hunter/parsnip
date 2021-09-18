@@ -270,18 +270,16 @@ They can then be referenced with function designators:
   (parse-collect1 (predicate-parser #'digit-char-p)))
 ```
 
-### ### [Condition] **parser-error**
+### [Condition] **parser-error** *(stream-error)*
 
-If a parser fails to read text, it signals a `parser-error`, and provides these readers:
+If a parser fails to read text, it signals a `parser-error`, containing a stream, its expected value, and a return trace of parsers.
 
-ABCL has some funky behavior with conditions that subtype `stream-error`.
-These conditions, while they can have a `:stream` passed down, and are `typep` to a `stream-error`, raise a `type-error` if you apply `stream-error-stream` to it.
-As a workaround, stream-errors do not subtype `stream-error` in ABCL, and a more portable function `parser-error-stream` is available for all implementations.
-
-### [Function] **parser-error-stream** *parser-error*
+### [Function] **stream-error-stream** *parser-error*
 
 Return the stream the parser was reading from.
-Impl's outside ABCL may also use **stream-error-stream**.
+
+ABCL users: [ABCL currently has a bug](https://github.com/armedbear/abcl/issues/388) that makes this function break on parser errors.
+There's a PR that fixes `stream-error-stream` and all other affected error readers.
 
 ### [Function] **parser-error-expected** *parser-error*
 
