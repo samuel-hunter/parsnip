@@ -93,20 +93,6 @@
         (parser-error-expected
           (capture-parse-error parser "bar")))))
 
-(define-test parser-error
-  :depends-on (char-parser)
-  (let* ((parser (char-parser #\a))
-         (err (capture-parse-error parser "z")))
-    (is equal #\a
-        (parser-error-expected err))
-
-    ;; stream-error-stream on ABCL fails on subconditions to stream-error,
-    ;; because ABCL's code checks if the condition is directly instanceof
-    ;; ParserError (the Java class), instead of checking if it's typep to
-    ;; parser-error: https://github.com/armedbear/abcl/issues/388
-    #-ABCL
-    (of-type stream (stream-error-stream err))))
-
 (define-test eof-parser
   (let ((parser (eof-parser)))
     (is eq nil
@@ -144,6 +130,26 @@
 
     (fail (parse-string parser "a")
           'parser-error)))
+
+(define-test parser-error
+  :depends-on (char-parser parse-map)
+  (let* ((parser (parse-map #'list (char-parser #\a) (char-parser #\Newline) (char-parser #\c)))
+         (err1 (capture-parse-error parser "abc"))
+         (err2 (capture-parse-error parser (format nil "a~%z"))))
+
+    ;; stream-error-stream on ABCL fails on subconditions to stream-error,
+    ;; because ABCL's code checks if the condition is directly instanceof
+    ;; ParserError (the Java class), instead of checking if it's typep to
+    ;; parser-error: https://github.com/armedbear/abcl/issues/388
+    #-ABCL
+    (of-type stream (stream-error-stream err1))
+
+    (is = 1 (parser-error-line err1))
+    (is = 1 (parser-error-column err1))
+    (is equal #\Newline (parser-error-expected err1))
+
+    (is = 2 (parser-error-line err2))
+    (is = 0 (parser-error-column err2))))
 
 (define-test parse-progn
   :depends-on (char-parser)
