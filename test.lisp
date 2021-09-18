@@ -133,9 +133,13 @@
 
 (define-test parser-error
   :depends-on (char-parser parse-map)
-  (let* ((parser (parse-map #'list (char-parser #\a) (char-parser #\Newline) (char-parser #\c)))
+  (let* ((parser (parse-map #'list
+                            (predicate-parser (constantly t))
+                            (char-parser #\Newline)
+                            (char-parser #\c)))
          (err1 (capture-parse-error parser "abc"))
-         (err2 (capture-parse-error parser (format nil "a~%z"))))
+         (err2 (capture-parse-error parser (format nil "a~%z")))
+         (err3 (capture-parse-error parser (format nil "~Cbc" #\Tab))))
 
     ;; stream-error-stream on ABCL fails on subconditions to stream-error,
     ;; because ABCL's code checks if the condition is directly instanceof
@@ -149,7 +153,10 @@
     (is equal #\Newline (parser-error-expected err1))
 
     (is = 2 (parser-error-line err2))
-    (is = 0 (parser-error-column err2))))
+    (is = 0 (parser-error-column err2))
+
+    (is = 1 (parser-error-line err3))
+    (is = 8 (parser-error-column err3))))
 
 (define-test parse-progn
   :depends-on (char-parser)
