@@ -95,7 +95,6 @@ However, you may have certain requirements for your own project which would hold
   I'll feel confident enough in this when I create my own decoder on-top of this library.
 - Robustness.
   I've targeted at least 95% coverage reported by `sb-cover` while developing this API, to limit erroneous behavior stemming from edge cases.
-  After reworking the internal API, this dropped to ~80%.
   Every release includes a code coverage report, and every push to the repository triggers an automated system test.
 - Development Speed.
   Something similar to the example json decoder can be reasonably written within an afternoon.
@@ -280,6 +279,21 @@ Return the stream the parser was reading from.
 
 ABCL users: [ABCL currently has a bug](https://github.com/armedbear/abcl/issues/388) that makes this function break on parser errors.
 There's a PR that fixes `stream-error-stream` and all other affected error readers.
+
+### [Function] **parser-error-line**, **parser-error-column** *parser-error*
+
+Return the line and column information from the parser.
+
+```lisp
+(use-package :xyz.shunter.parsnip.examples.json)
+
+(handler-case (decode-json-from-string "[10,20,,]")
+  (parser-error (c)
+    (values (parser-error-line c)
+            (parser-error-column c))))
+1
+7
+```
 
 ### [Function] **parser-error-expected** *parser-error*
 
