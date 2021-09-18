@@ -30,56 +30,68 @@ $ git clone https://git.sr.ht/~shunter/parsnip
 (use-package :parsnip)
 
 ;; digit := [0-9]
-(defparser digit-parser ()
-  (predicate-parser #'digit-char-p))
+(defparser digit ()
+  (parse-tag :digit (predicate-parser 'digit-char-p)))
 
 (defparser digits ()
-  (parse-collect1 #'digit-parser))
+  (parse-collect1 'digit))
 
-;; integer := digit+
-(defparser integer-parser ()
-  (parse-let ((digits #'digits))
+;; whole-part := digit+
+(defparser whole-part ()
+  (parse-let ((digits 'digits))
     (parse-integer (coerce digits 'string))))
 
-;; decimal-part := '.' integer
+;; decimal-part := '.' [0-9]+
 (defparser decimal-part ()
   (parse-let ((dot (char-parser #\.))
-              (digits #'digits))
+              (digits 'digits))
     (declare (ignore dot))
     (/ (parse-integer (coerce digits 'string))
        (expt 10 (length digits)))))
 
-;; number := integer [ decimal-part ]
-(defparser number-parser ()
+;; number := whole-part [ decimal-part ]
+(defparser decimal-number ()
   (parse-map #'+
-             #'integer-parser
+             'whole-part
 	     (parse-optional #'decimal-part 0)))
 
-(with-input-from-string (stream "123.47")
-  (let ((number (parse #'number-parser stream)))
-    (print number))) ;; => 12347/100
+(defun parse-from-string (parser string)
+  (with-input-from-string (stream string)
+    (parse parser stream)))
+
+(parse-from-string 'decimal-number "123.47") ;; => 12347/100
 ```
 
-`defparser` allows forward-referencing and pushes its symbol to return traces on failure for debugging.
-However, you are able to use parsers as values however you like:
+Parsnip aims to provide rich information for parsers aimed at end-users:
 
-```lisp
-(defparameter *digits*
-  (parse-collect1 #'digit-parser))
+```
+(use-package :xyz.shunter.parsnip.examples.json)
 
-;; integer := digit+
-(defparser integer-parser ()
-  (parse-let ((digits *digits*))
-    (parse-integer (coerce digits 'string))))
+;; bad.json: [10,20,,]
+(with-open-file (s "/tmp/bad.json")
+  (decode-json s))
+/tmp/bad.json:1:7: Expected (#\f #\n #\t #\{ #\[
+                             (:integer . 10) #\") on #<STREAM>
+[Condition of type PARSER-ERROR]
 
-;; Or:
+(with-open-file (s "/tmp/bad.json")
+  (handler-case (decode-json s)
+    (parser-error (c)
+      (values (parser-error-line c)
+              (parser-error-column c)))))
+1
+7
 
-(defparser integer-parser ()
-  ;; Normal lisp expressions may be allowed in parser definitions, as long as
-  ;; the return value is a parser.
-  (let ((digits* (parse-collect1 #'digit-parser)))
-    (parse-let ((digits digits*))
-      (parse-integer (coerce digits #'string)))))
+(handler-case (decode-json-from-string "[10,20,{\"foo\":\"bar\",}]")
+  (parser-error (c)
+    (format t "~A~%" c)
+    (parser-error-return-trace c)))
+NIL:1:20: Expected #\" on #<STRING-INPUT-STREAM>
+((xyz.shunter.parsnip.examples.json::value 1 0)
+ (xyz.shunter.parsnip.examples.json::json-array 1 0)
+ (xyz.shunter.parsnip.examples.json::value 1 7)
+ (xyz.shunter.parsnip.examples.json::json-object 1 7)
+ (xyz.shunter.parsnip.examples.json::json-string 1 20))
 ```
 
 The [test suite](./test.lisp) shows how each function works, and how it's expected to perform.
