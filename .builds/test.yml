@@ -5,8 +5,6 @@ environment:
   ROSWELL_BRANCH: release
 packages:
 - wget
-secrets:
-- 1ee8ca54-5b4d-4d53-97cd-52fbb9606387
 sources:
 - https://git.sr.ht/~shunter/parsnip
 tasks:
