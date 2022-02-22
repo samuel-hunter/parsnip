@@ -1,15 +1,18 @@
 # Parsnip
 [![builds.sr.ht status](https://builds.sr.ht/~shunter/parsnip/commits/test.yml.svg)](https://builds.sr.ht/~shunter/parsnip/commits/test.yml)
 
-![Parsnip brand doodle](./brand.png)
+![The library brand image: a crudely drawn parsnip surrounded by parentheses](./brand.png)
 
-Quickly combine small parsers together.
+Monadic parser combinator library.
 
-Other parser combinator libraries I've found in the ecosystem are either too macro-heavy for me, or warn that they are not production-ready.
+Conventional parsers are modeled as a two-stage process: a scanner that takes characters and produce tokens, and a parser that takes tokens and produce syntax trees.
+Monadic parsers instead model parsers as smaller parsers that can compose together, much like the procedures of a conventional program.
+
+Other parser combinator libraries I've found for Common Lisp are either too macro-heavy for me, or warn that they are not production-ready.
 I don't trust third-party libraries that don't trust themselves, and so I've made my own, going for a simple interface targeted for public consumption.
 
 Parsnip targets user-facing compilers, interpreters, or other readers of character-based languages, where end-users would like to know information when input fails to parse.
-Parsnip does **not** target performance-intensive or byte-based decoders, such as those used in network stacks, or JSON/XML decoders for user input for web applications.
+Parsnip does **not** target performance-intensive or byte-based decoders, such as those used in network stacks, or JSON/XML decoders for request data for web applications.
 
 ## Contributions
 
@@ -18,7 +21,13 @@ I do my main development on [Sourcehut](https://sr.ht/~shunter/parsnip/), with a
 
 ## Usage
 
-Parsnip is not yet available on Quicklisp:
+Parsnip is available on Quicklisp:
+```lisp
+(ql:quickload :parsnip)
+```
+
+Parsnip can also be loaded remotely.
+Make sure to also install the sole dependency Alexandria:
 
 ```sh
 $ cd ~/common-lisp/ # Or wherever you store your definitions
@@ -26,34 +35,32 @@ $ git clone https://git.sr.ht/~shunter/parsnip
 ```
 
 ```lisp
-(ql:quickload :parsnip)
+(require :parsnip)
 (use-package :parsnip)
 
 ;; digit := [0-9]
-(defparser digit ()
-  (parse-tag :digit (predicate-parser 'digit-char-p)))
+(defparser one-digit ()
+  (char-if #'digit-char-p))
 
 (defparser digits ()
-  (parse-collect1 'digit))
+  (collect1 'one-digit))
 
 ;; whole-part := digit+
 (defparser whole-part ()
-  (parse-let ((digits 'digits))
-    (parse-integer (coerce digits 'string))))
+  (let! ((digits 'digits))
+    (ok (parse-integer (coerce digits 'string)))))
 
 ;; decimal-part := '.' [0-9]+
 (defparser decimal-part ()
-  (parse-let ((dot (char-parser #\.))
-              (digits 'digits))
-    (declare (ignore dot))
-    (/ (parse-integer (coerce digits 'string))
-       (expt 10 (length digits)))))
+  (let! ((digits (progn! (char-of #\.) 'digits)))
+    (ok (/ (parse-integer (coerce digits 'string))
+           (expt 10 (length digits))))))
 
 ;; number := whole-part [ decimal-part ]
 (defparser decimal-number ()
-  (parse-map #'+
-             'whole-part
-	     (parse-optional #'decimal-part 0)))
+  (let! ((whole-value 'whole-part)
+         (decimal-value (or! 'decimal-part (ok 0))))
+    (ok (+ whole-value decimal-value))))
 
 (defun parse-from-string (parser string)
   (with-input-from-string (stream string)
@@ -141,192 +148,123 @@ I recognize these as non-breaking changes:
 The [JSON example](./examples/json.lisp) matches close to the grammar notation of the [RFC8259 JSON specification](https://datatracker.ietf.org/doc/html/rfc8259).
 Outside of a couple outliers (e.g. the value definition is moved to the end), the code is laid out nearly section-by-section as stated in the RFC.
 
-The [Tiny C example](./examples/tiny-c.lisp) demonstrates a stripped down version of C with no types, no preprocessing, and only an `if` control structure.
-It is meant to show a very small yet turing-complete C-family language.
-
 I plan to be writing a parser for [ABC notation v2.1](http://abcnotation.com/wiki/abc:standard:v2.1) in the future.
 
 ## API
 
-### [Function] **parse** *parser stream*
+### [Function] **ok** *value* => *parser*
 
-Parse from the given stream and raise any failures as a **parser-error**.
+Return a parser that consumes nothing and returns the given value.
 
-### [Function] **char-parser** *char*
+### [Function] **fail** *expected &optional trace* => *parser*
 
-Consume and return the given character.
+Return a parser that consumes nothing and fails, reporting the expected value.
 
-### [Function] **predicate-parser** *predicate*
+### [Function] **char-if** *predicate &optional message* => *char-parser*
 
-Consume and return a character that passes the given predicate.
+Return a parser that consumes a character that satisfies the given predicate.
 
-### [Function] **string-parser** *string*
+### [Function] **char-of** *char &optional message* => *char-parser*
 
-Consume and return the given text. May partially parse on failure.
+Return a parser that consumes the given character.
 
-### [Function] **eof-parser** *&optional value*
+### [Function] **char-in** *charbag &optional message* => *char-parser*
 
-Return the given value (or NIL) if at EOF.
+Return a parser that consumes a character in the given character bag.
 
-### [Function] **digit-parser** *&optional (radix 10)*
-Consume a single digit and return its integer value.
+### [Function] **eof** *&optional value* => *parser*
 
-### [Function] **integer-parser** *&optional (radix 10)*
+Return a parser that consumes nothing and returns the given value (or `nil`) if the input stream is exhausted.
 
-Consume one or more digits and return its integer value.
+### [Function] **flatmap** *function parser* => *parser*
 
-### [Function] **parse-map** *function &rest parsers*
+Return a new parser that applies the given function to the parser's result, and then runs the parser the function returns.
+This function forms the basis of stringing multiple parsers together.
 
-Run the parsers in sequence and apply the given function to all results.
+### [Macro] **let!** *(&rest bindings) &body body* => *parser*
 
-### [Function] **parse-progn** *&optional parsers*
+Return a parser that runs all given parsers, binds them all to their variables, evaluates the body, and then runs the parser the body returns.
 
-Run the parsers in sequence and return the last result.
+### [Function] **handle** *parser handler* => *parser*
 
-### [Function] **parse-prog1** first-parser *&rest parsers*
-Run the parsers in sequence and return the first result
+Return a new parser that, on failure, applies the handler function to the parser's expected value and parse trace (as a list), and then runs the parser the handler returns.
 
-### [Function] **parse-prog2** *&rest parsers*
+`handle` does not handle partial-parse failures, which can be recovered from via `handle-rewind`.
 
-Run the parsers in sequence and return the second result.
+### [Function] **handle-rewind** *parser handler* => *parser*
 
-### [Function] **parse-collect** *parser*
+Return a new parser that saves the stream's current position and, on failure, rewinds the stream, applies the handler function to the parser's expected value and parse trace (as a list), and then runs the parser the handler returns.
 
-Run until failure, and then return the collected results.
+`handle-rewind` only functions if the parser is given a seekable stream.
 
-### [Function] **parse-collect1** *parser*
+### [Function] **progn!** *&rest parsers* => *parser*
 
-Run until failure, and then return at **least** one collected result.
+Return a parser that strings together all given parsers and returns the last parser's result.
 
-### [Function] **parse-collect-string** *parser*
+### [Function] **prog1!** *first &rest parsers* => *parser*
 
-Run until failure, and then return the collected characters as a string.
+Return a parser that strings together all given parsers and returns the first parser's result.
 
-### [Function] **parse-reduce** *function parser initial-value*
+### [Function] **prog2!** *first second &rest parsers* => *parser*
 
-Run until failure, and then reduce the results into one value.
+Return a parser that strings together all given parsers and returns the second parser's result.
 
-### [Function] **parse-take** *times parser*
+### [Function] **or!** *&rest parsers* => *parser*
 
-Run and collect **exactly** the given number of results.
+Return a parser that tries each given parser in order (until a partial-parse failure) and returns the result of the first successful parse.
 
-### [Function] **parse-or** *&rest parsers*
+### [Function] **collect** *parser* => *list-parser*
 
-Attempt each given parser in order until one succeeds.
+Return a parser that runs the given parser until failure, and collects all results into a list.
 
-### [Function] **parse-optional** *optional &result default*
+### [Function] **collect1** *parser* => *list-parser*
 
-Resume from a failure with a default value.
+Return a parser that runs the given parser once, keeps parsing until failure, and then collects all results into a list.
 
-### [Function] **parse-try** *parser*
+### [Function] **collect-into-string** *char-parser* => *string-parser*
 
-Try to rewind the stream on any partial-parse failure.
-Only works on seekable streams, and is the only parser that can recover from partial-parse failures.
+Return a parser that runs the given character parser until failure, and collects all characters into a string.
 
-### [Function] **parse-skip-many** *parser*
+### [Function] **sep** *value-parser sep-parser* => *value-list-parser*
 
-Keep parsing until failure and pretend no input was consumed.
+Return a parser that accepts a sequence of `value-parser` input separated by `sep-parser` input; such as values separated by commas.
 
-```lisp
-(defparser spaces ()
-  (parse-skip-many (char-parser #\Space)))
+### [Function] **reduce!** *function parser &key initial-value* => *parser*
 
-(defun ws (parser)
-  (parse-prog2 spaces parser spaces))
-```
+Return a parser that keeps running until failure, and reduces its result into one value.
 
-### [Function] **parse-tag** *tag parser*
+If `initial-value` is supplied, the parser may succeed without parsing by returning `initial-value`.
 
-Report fails as expecting the given tag instead of an element.
+### [Function] **skip** *parser* => *parser*
 
-```lisp
-* (defparser digit ()
-    (parse-tag :igit (predicate-parser #'digit-char-p)))
-DIGIT
+Parse and pretend no input was consumed.
 
-* (with-input-from-string (s "a")
-    (parse #'digit s))
-Expected element :DIGIT on #<dynamic-extent STRING INPUT STREAM>
-[Condition of type PARSER-ERROR]
-```
+### [Function] **skip-many** *parser* => *parser*
 
-### [Macro] **parse-let** *bindings &body body*
+Keep parsing until failure, discard the results, and pretend no input was consumed.
 
-Compose multiple parsers together to bind their results to variables and return a value within the body:
+### [Function] **digit** *&optional (radix 10)* => *integer-parser*
 
-```lisp
-(defparameter *id-parser*
-  (parse-let ((letter (predicate-parser #'alpha-char-p))
-              (digits (parse-collect1 (predicate-parser #'digit-char-p))))
-    (make-instance 'identifier :letter letter
-                               :number (parse-integer (coerce digits 'string)))))
-```
+Consume and return the number value of a digit.
 
-### [Macro] **defparser** *name () form*
+### [Function] **natural** *&optional (radix 10)* => *integer-parser*
 
-Define a parser as a function.
-They can then be referenced with function designators:
+Consume and return a natural number.
 
-```lisp
-(defparser alpha-parser ()
-  (predicate-parser #'alpha-char-p))
+### [Macro] **defparser** *name () &body (form)* => *symbol*
 
-(defparser id-parser ()
-  (parse-let ((letter #'alpha-parser)
-              (digits 'digits-parser))
-    (make-instance 'identifier :letter letter
-                               :number (parse-integer (coerce digits 'string)))))
+Define a parser as a function. It can then be referenced as a function designator.
 
-(defparser digits-parser ()
-  (parse-collect1 (predicate-parser #'digit-char-p)))
-```
+### [Function] **parse** *parser stream* => *object*
 
-### [Condition] **parser-error** *(stream-error)*
+Run a parser through a given stream and raise any failures as a `parser-error`.
 
-If a parser fails to read text, it signals a `parser-error`, containing a stream, its expected value, and a return trace of parsers.
+### [Condition] **parser-error**
 
-### [Function] **stream-error-stream** *parser-error*
+### [Function] **parser-error-line**, **parser-error-column** *parser-error* => *integer*
 
-Return the stream the parser was reading from.
+Return the line and column that the parser stopped at. The parser assumes the line starts at 1 and column starts at 0 before beginning. Newlines count as EOL and tabs count as one space.
 
-ABCL users: [ABCL currently has a bug](https://github.com/armedbear/abcl/issues/388) that makes this function break on parser errors.
-There's a PR that fixes `stream-error-stream` and all other affected error readers.
+### [Function] **parser-error-expected** *parser-error* => *string-designator*
 
-### [Function] **parser-error-line**, **parser-error-column** *parser-error*
-
-Return the line and column information from the parser.
-
-```lisp
-(use-package :xyz.shunter.parsnip.examples.json)
-
-(handler-case (decode-json-from-string "[10,20,,]")
-  (parser-error (c)
-    (values (parser-error-line c)
-            (parser-error-column c))))
-1
-7
-```
-
-### [Function] **parser-error-expected** *parser-error*
-
-Return the value that the parser error expected to read.
-May be overridden with `parser-tag`.
-
-### [Function] **parser-error-return-trace** *parser-error*
-
-Every parser defined with `defparser` adds its symbol to the return trace as the error bubbles up.
-The return trace, along with `(file-position stream)`, should assist developers debug their parsers
-
-```lisp
-(handler-case (decode-json-from-string "[10,20,{\"foo\":\"bar\",}]")
-           (parser-error (c)
-
-                         (format t "~A" c)
-                         (parser-error-return-trace c)))
-NIL:1:20: Expected #\" on #<STRING-INPUT-STREAM>
-((XYZ.SHUNTER.PARSNIP.EXAMPLES.JSON::VALUE 1 0)
- (XYZ.SHUNTER.PARSNIP.EXAMPLES.JSON::JSON-ARRAY 1 0)
- (XYZ.SHUNTER.PARSNIP.EXAMPLES.JSON::VALUE 1 7)
- (XYZ.SHUNTER.PARSNIP.EXAMPLES.JSON::JSON-OBJECT 1 7)
- (XYZ.SHUNTER.PARSNIP.EXAMPLES.JSON::JSON-STRING 1 20))
-```
+Return a description of the item the parser expected.

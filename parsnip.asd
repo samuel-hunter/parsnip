@@ -27,8 +27,7 @@
   :depends-on (#:parsnip
                #:alexandria)
   :components ((:module :examples
-                :components ((:file "json")
-                             (:file "tiny-c"))))
+                :components ((:file "json"))))
   :in-order-to ((asdf:test-op (asdf:test-op :parsnip/test))))
 
 (asdf:defsystem #:parsnip/test

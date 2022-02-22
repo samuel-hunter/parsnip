@@ -4,9 +4,10 @@
 ;;; BSD-3-Clause
 
 (defpackage #:xyz.shunter.parsnip.test
-  (:use #:cl #:parachute
+  (:use #:cl
         #:xyz.shunter.parsnip
-        #:xyz.shunter.parsnip.examples.json))
+        #:xyz.shunter.parsnip.examples.json)
+  (:local-nicknames (#:t #:parachute)))
 
 (in-package #:xyz.shunter.parsnip.test)
 
@@ -33,551 +34,400 @@
 
 ;; Unit Tests
 
-(define-test char-parser
-  (let ((parser (char-parser #\a)))
-    (is char= #\a
-        (parse-string parser "abc"))
+(t:define-test ok
+  (t:is eq :hello
+        (parse-string (ok :hello) "whatever"))
 
-    (is char= #\a
-        (parse-string parser "a"))
+  (t:is eq :hello
+        (parse-string (ok :hello) "")))
 
-    (fail (parse-string parser "z")
-          'parser-error)
+(t:define-test fail
+  (t:fail (parse-string (fail "terrible!") "whatever"))
+  (t:fail (parse-string (fail "terrible!") ""))
 
-    (fail (parse-string parser "")
-          'parser-error)
-
-    (is char= #\a
+  (t:is string= "terrible!"
         (parser-error-expected
-          (capture-parse-error parser "z")))))
+          (capture-parse-error (fail "terrible!") "whatever"))))
 
-(define-test predicate-parser
-  (let ((parser (predicate-parser #'digit-char-p)))
-    (is char= #\0
-        (parse-string parser "0"))
+(t:define-test char-if
+  (t:is char= #\a
+      (parse-string (char-if #'alpha-char-p) "a"))
 
-    (is char= #\0
-        (parse-string parser "012"))
+  (t:is char= #\z
+      (parse-string (char-if #'alpha-char-p) "z"))
 
-    (is char= #\9
-        (parse-string parser "9"))
+  (t:fail (parse-string (char-if #'alpha-char-p) "0"))
+  (t:fail (parse-string (char-if #'alpha-char-p) ""))
 
-    (fail (parse-string parser "z")
-          'parser-error)
-
-    (fail (parse-string parser "")
-          'parser-error)
-
-    (is eq #'digit-char-p
+  (t:is string= "letter"
         (parser-error-expected
-          (capture-parse-error parser "z")))))
-
-(define-test string-parser
-  (let ((parser (string-parser "foo")))
-    (is string= "foo"
-        (parse-string parser "foo"))
-
-    (is string= "foo"
-        (parse-string parser "foobar"))
-
-    (fail (parse-string parser "bar")
-          'parser-error)
-
-    (fail (parse-string parser "fo")
-          'parser-error)
-
-    (fail (parse-string parser "")
-          'parser-error)
-
-    (is string= "foo"
-        (parser-error-expected
-          (capture-parse-error parser "bar")))))
-
-(define-test eof-parser
-  (let ((parser (eof-parser)))
-    (is eq nil
-        (parse-string parser ""))
-
-    (fail (parse-string parser "foo")
-          'parser-error)
-
-    (is eq :eof
-        (parser-error-expected
-          (capture-parse-error parser "foo"))))
-
-  (is eq :eof
-      (parse-string (eof-parser :eof) "")))
-
-(define-test parse-map
-  :depends-on (char-parser)
-  (let ((parser (parse-map #'char-code
-                           (char-parser #\a))))
-    (is = #.(char-code #\a)
-        (parse-string parser "a"))
-
-    (fail (parse-string parser "z")
-          'parser-error)
-
-    (is char= #\a
-        (parser-error-expected
-          (capture-parse-error parser "z"))))
-
-  (let ((parser (parse-map #'list
-                           (char-parser #\a)
-                           (char-parser #\b))))
-    (is equal '(#\a #\b)
-        (parse-string parser "ab"))
-
-    (fail (parse-string parser "a")
-          'parser-error)))
-
-(define-test parser-error
-  :depends-on (char-parser parse-map)
-  (let* ((parser (parse-map #'list
-                            (predicate-parser (constantly t))
-                            (char-parser #\Newline)
-                            (char-parser #\c)))
-         (err1 (capture-parse-error parser "abc"))
-         (err2 (capture-parse-error parser (format nil "a~%z")))
-         (err3 (capture-parse-error parser (format nil "~Cbc" #\Tab))))
-
-    ;; stream-error-stream on ABCL fails on subconditions to stream-error,
-    ;; because ABCL's code checks if the condition is directly instanceof
-    ;; ParserError (the Java class), instead of checking if it's typep to
-    ;; parser-error: https://github.com/armedbear/abcl/issues/388
-    #-ABCL
-    (of-type stream (stream-error-stream err1))
-
-    (is = 1 (parser-error-line err1))
-    (is = 1 (parser-error-column err1))
-    (is equal #\Newline (parser-error-expected err1))
-
-    (is = 2 (parser-error-line err2))
-    (is = 0 (parser-error-column err2))
-
-    (is = 1 (parser-error-line err3))
-    (is = 8 (parser-error-column err3))))
-
-(define-test parse-progn
-  :depends-on (char-parser)
-  (let ((a (parse-progn (char-parser #\a))))
-    ;; parse-progn with a single element should act like its child parser
-    (is char= #\a
-        (parse-string a "a"))
-
-    (fail (parse-string a "z")
-          'parser-error))
-
-  (let ((ab (parse-progn (char-parser #\a)
-                         (char-parser #\b))))
-    (is char= #\b
-        (parse-string ab "ab"))
+          (capture-parse-error (char-if #'alpha-char-p "letter") "0"))))
+
+(t:define-test char-of
+  :depends-on (char-if)
+  (t:is char= #\a
+        (parse-string (char-of #\a) "a"))
+  (t:fail (parse-string (char-of #\a) "z"))
+  (t:fail (parse-string (char-of #\a) nil))
+
+  (t:is char= #\z
+        (parse-string (char-of #\z) "z"))
+  (t:fail (parse-string (char-of #\z) "a")))
 
-    (fail (parse-string ab "az")
-          'parser-error)
+(t:define-test char-in
+  :depends-on (char-if)
+  (t:is char= #\a
+        (parse-string (char-in "abc") "a"))
+  (t:is char= #\b
+        (parse-string (char-in "abc") "b"))
+  (t:is char= #\c
+        (parse-string (char-in "abc") "c"))
 
-    (fail (parse-string ab "b")
-          'parser-error))
+  (t:fail (parse-string (char-in "abc") "z"))
+  (t:fail (parse-string (char-in "abc") "")))
 
-  (let ((abc (parse-progn (char-parser #\a)
-                          (char-parser #\b)
-                          (char-parser #\c))))
-    (is char= #\c
-        (parse-string abc "abc"))
+(t:define-test eof
+  (t:is eq nil
+        (parse-string (eof) ""))
 
-    (fail (parse-string abc "abz")
-          'parser-error)
+  (t:is eq :end
+        (parse-string (eof :end) ""))
 
-    (fail (parse-string abc "az")
-          'parser-error)
+  (t:fail (parse-string (eof) "something")))
 
-    (fail (parse-string abc "bc")
-          'parser-error)
+(t:define-test flatmap
+  :depends-on (char-if)
+  (let ((parser (flatmap (lambda (c)
+                           (if (char= c #\d)
+                               (fail "not d")
+                               (ok c)))
+                         (char-if #'alpha-char-p))))
+    (t:is char= #\a
+          (parse-string parser "a"))
+
+    (t:is char= #\z
+          (parse-string parser "z"))
 
-    (fail (parse-string abc "c")
-          'parser-error)))
+    (t:fail (parse-string parser "1"))
 
-(define-test parse-prog1
-  :depends-on (char-parser)
-  (let ((a (parse-prog1 (char-parser #\a))))
-    ;; parse-prog1 with a single element should act like its child parser
-    (is char= #\a
-        (parse-string a "a"))
+    (t:fail (parse-string parser "d"))
 
-    (fail (parse-string a "z")
-          'parser-error))
+    (t:is string= "not d"
+          (parser-error-expected
+            (capture-parse-error parser "d"))))
 
-  (let ((ab (parse-prog1 (char-parser #\a)
-                         (char-parser #\b))))
-    (is char= #\a
-        (parse-string ab "ab"))
+  (let ((parser (flatmap (lambda (c)
+                           (if (char= c #\Z)
+                               (char-if #'digit-char-p)
+                               (ok c)))
+                         (char-if #'alpha-char-p))))
+    (t:is char= #\a
+          (parse-string parser "a"))
 
-    (fail (parse-string ab "az")
-          'parser-error)
+    (t:is char= #\1
+          (parse-string parser "Z1"))
 
-    (fail (parse-string ab "b")
-          'parser-error))
+    (t:fail (parse-string parser "Z"))))
 
-  (let ((abc (parse-prog1 (char-parser #\a)
-                          (char-parser #\b)
-                          (char-parser #\c))))
-    (is char= #\a
-        (parse-string abc "abc"))
+(t:define-test let!
+  :depends-on (char-if flatmap)
+  (let ((parser (let! ((c (char-if #'alpha-char-p)))
+                  (ok (char-code c)))))
+    (t:is = (char-code #\a)
+          (parse-string parser "a"))
 
-    (fail (parse-string abc "abz")
-          'parser-error)
+    (t:is = (char-code #\b)
+          (parse-string parser "b")))
 
-    (is char= #\c
-        (parser-error-expected
-          (capture-parse-error abc "abz")))
+  (let ((parser (let! ((d1 (char-if #'digit-char-p))
+                       (d2 (char-if #'digit-char-p))
+                       (d3 (char-if #'digit-char-p)))
+                  (ok (+ (* 100 (digit-char-p d1))
+                         (* 10  (digit-char-p d2))
+                         (* 1   (digit-char-p d3)))))))
+    (t:is = 123
+          (parse-string parser "123"))
 
-    (fail (parse-string abc "az")
-          'parser-error)
+    (t:fail (parse-string parser "12"))))
 
-    (fail (parse-string abc "z")
-          'parser-error)
+(t:define-test progn!
+  :depends-on (char-of)
+  (let ((a (progn! (char-of #\a)))
+        (ab (progn! (char-of #\a) (char-of #\b)))
+        (abc (progn! (char-of #\a) (char-of #\b) (char-of #\c))))
 
-    (is char= #\a
-        (parser-error-expected
-          (capture-parse-error abc "z")))
 
-    (fail (parse-string abc "bc")
-          'parser-error)
+    (t:is char= #\a
+          (parse-string a "a"))
 
-    (fail (parse-string abc "c")
-          'parser-error)))
+    (t:fail (parse-string a "z"))
 
-(define-test parse-prog2
-  :depends-on (char-parser)
-  (let ((ab (parse-prog2 (char-parser #\a)
-                         (char-parser #\b))))
-    (is char= #\b
-        (parse-string ab "ab"))
+    (t:is char= #\b
+          (parse-string ab "ab"))
 
-    (fail (parse-string ab "az")
-          'parser-error)
+    (t:fail (parse-string ab "az"))
 
-    (fail (parse-string ab "z")
-          'parser-error))
+    (t:is char= #\c
+          (parse-string abc "abc"))
 
-  (let ((abc (parse-prog2 (char-parser #\a)
-                          (char-parser #\b)
-                          (char-parser #\c))))
-    (is char= #\b
-        (parse-string abc "abc"))
+    (t:fail (parse-string abc "abz"))))
 
-    (fail (parse-string abc "abz")
-          'parser-error)
+(t:define-test handle
+  :depends-on (eof char-of progn!)
 
-    (fail (parse-string abc "az")
-          'parser-error)
+  (let ((parser (handle (eof :eof) (constantly (ok :not-eof)))))
+    (t:is eq :eof
+          (parse-string parser ""))
 
-    (fail (parse-string abc "bc")
-          'parser-error)
+    (t:is eq :not-eof
+          (parse-string parser "whatever")))
 
-    (fail (parse-string abc "c")
-          'parser-error)))
+  (let ((parser (handle (progn! (char-of #\a) (char-of #\b))
+                        (constantly (ok :recovered)))))
+    (t:is eq #\b
+          (parse-string parser "ab"))
 
-(define-test parse-or
-  :depends-on (char-parser string-parser)
-  (let ((a (parse-or (char-parser #\a))))
-    (is char= #\a
-        (parse-string a "a"))
+    (t:is eq :recovered
+          (parse-string parser "cd"))
 
-    (fail (parse-string a "z")
-          'parser-error))
+    (t:fail (parse-string parser "ac"))))
 
-  (let ((abc (parse-or (char-parser #\a)
-                       (char-parser #\b)
-                       (char-parser #\c))))
-    (is char= #\a
-        (parse-string abc "a"))
-
-    (is char= #\b
-        (parse-string abc "b"))
-
-    (is char= #\c
-        (parse-string abc "c"))
+(t:define-test handle-rewind
+  :depends-on (progn! let!)
+  (let ((parser (handle-rewind (progn! (char-of #\a) (char-of #\b))
+                               (constantly (ok :recovered)))))
+    (t:is eq :recovered
+          (parse-string parser "ac"))))
+
+(t:define-test prog1!
+  :depends-on (char-of)
+  (let ((a (prog1! (char-of #\a)))
+        (ab (prog1! (char-of #\a) (char-of #\b)))
+        (abc (prog1! (char-of #\a) (char-of #\b) (char-of #\c))))
 
-    (fail (parse-string abc "z")
-          'parser-error)
-
-    (is equal '(#\a #\b #\c)
-        (parser-error-expected
-          (capture-parse-error abc "z"))))
 
-  (let ((foobar (parse-or (string-parser "foo")
-                          (string-parser "bar"))))
-    (is string= "foo"
-        (parse-string foobar "foo"))
+    (t:is char= #\a (parse-string a "a"))
+
+    (t:fail (parse-string a "z"))
 
-    (fail (parse-string foobar "bar")
-          'parser-error
-          "parse-or fails early on a partial parse.")))
+    (t:is char= #\a
+          (parse-string ab "ab"))
 
-(define-test parse-optional
-  :depends-on (char-parser string-parser)
-  (let ((a (parse-optional (char-parser #\a))))
-    (is char= #\a
-        (parse-string a "a"))
-
-    (is eq nil
-        (parse-string a "z"))
-
-    (is eq nil
-        (parse-string a "")))
+    (t:fail (parse-string ab "az"))
+
+    (t:is char= #\a
+          (parse-string abc "abc"))
 
-  (let ((a-or-b (parse-optional (char-parser #\a)
-                                #\b)))
-    (is char= #\b
-        (parse-string a-or-b "z"))
-
-    (is char= #\b
-        (parse-string a-or-b "")))
-
-  (let ((foo (parse-optional (string-parser "foo"))))
-    (is string= "foo"
-        (parse-string foo "foo"))
-
-    (fail (parse-string foo "bar")
-          'parser-error
-          "parse-optional fails when any input is consumed.")))
-
-(define-test parse-collect
-  :depends-on (predicate-parser string-parser)
-  (let ((parser (parse-collect (predicate-parser #'alpha-char-p))))
-    (is equal '(#\a)
-        (parse-string parser "a"))
-
-    (is equal '(#\a #\b #\c)
-        (parse-string parser "abc"))
-
-    (is equal ()
-        (parse-string parser "")))
-
-  (let ((foos (parse-collect (string-parser "foo"))))
-    (is equal '("foo" "foo" "foo")
-        (parse-string foos "foofoofoo"))
+    (t:fail (parse-string abc "abz"))))
 
-    (fail (parse-string foos "foofoobar")
-          'parser-error
-          "parse-collect fails when the last (errorful) parse consumes input.")))
-
-(define-test parse-collect1
-  :depends-on (predicate-parser string-parser)
-  (let ((parser (parse-collect1 (predicate-parser #'alpha-char-p))))
-    (is equal '(#\a)
-        (parse-string parser "a"))
-
-    (is equal '(#\a #\b #\c)
-        (parse-string parser "abc"))
-
-    (fail (parse-string parser "")
-          'parser-error))
+(t:define-test prog2!
+  :depends-on (char-of)
+  (let ((ab (prog2! (char-of #\a) (char-of #\b)))
+        (abc (prog2! (char-of #\a) (char-of #\b) (char-of #\c))))
 
-  (let ((foos (parse-collect (string-parser "foo"))))
-    (is equal '("foo" "foo" "foo")
-        (parse-string foos "foofoofoo"))
+    (t:is char= #\b
+          (parse-string ab "ab"))
 
-    (fail (parse-string foos "foofoobar")
-          'parser-error
-          "parse-collect1 fails when the last (errorful) parse consumes input.")))
+    (t:fail (parse-string ab "az"))
 
-(define-test parse-reduce
-  :depends-on (predicate-parser)
-  (let ((number-parser (parse-reduce
-                         (lambda (num digit)
-                           (+ (* 10 num)
-                              (- (char-code digit) #.(char-code #\0))))
-                         (predicate-parser #'digit-char-p) 0)))
-    (is = 123
-        (parse-string number-parser "123"))
+    (t:is char= #\b
+          (parse-string abc "abc"))
 
-    (is = 0
-        (parse-string number-parser ""))))
+    (t:fail (parse-string abc "abz"))))
 
-(define-test parse-take
-  :depends-on (predicate-parser)
-  (let ((letters (parse-take 3 (predicate-parser #'alpha-char-p))))
-    (is equal '(#\a #\a #\a)
-        (parse-string letters "aaa"))
+(t:define-test or!
+  :depends-on (char-of ok)
+  (let ((a-or-b-or-c (or! (char-of #\a)
+                          (char-of #\b)
+                          (char-of #\c)))
+        (a-or-b-or-default (or! (char-of #\a)
+                                (char-of #\b)
+                                (ok :default))))
+    (t:is char= #\a
+          (parse-string a-or-b-or-c "a"))
+    (t:is char= #\b
+          (parse-string a-or-b-or-c "b"))
+    (t:is char= #\c
+          (parse-string a-or-b-or-c "c"))
+    (t:fail (parse-string a-or-b-or-c "z"))
 
-    (is equal '(#\a #\b #\c)
-        (parse-string letters "abc123"))
+    (t:is char= #\a
+          (parse-string a-or-b-or-default "a"))
+    (t:is char= #\b
+          (parse-string a-or-b-or-default "b"))
+    (t:is eq :default
+          (parse-string a-or-b-or-default "z"))))
 
-    (fail (parse-string letters "ab!")
-          'parser-error)
+(t:define-test collect
+  :depends-on (char-of)
+  (let ((as (collect (char-of #\a))))
 
-    (fail (parse-string letters "ab")
-          'parser-error)))
+    (t:is equal '(#\a)
+          (parse-string as "a"))
+    (t:is equal '(#\a #\a #\a)
+          (parse-string as "aaa"))
+    (t:is equal '(#\a #\a #\a)
+          (parse-string as "aaaz"))
 
-(define-test parse-try
-  :depends-on (string-parser parse-or)
-  (let* ((try-foo (parse-try (string-parser "foo")))
-         (foo-or-bar (parse-or try-foo
-                               (string-parser "bar"))))
-    (is string= "foo"
-        (parse-string try-foo "foo"))
+    (t:is equal ()
+          (parse-string as "z"))
+    (t:is equal ()
+          (parse-string as ""))))
 
-    (is string= "foo"
-        (parse-string foo-or-bar "foo"))
+(t:define-test collect1
+  :depends-on (char-of)
+  (let ((as (collect1 (char-of #\a))))
 
-    (is string= "bar"
-        (parse-string foo-or-bar "bar"))))
+    (t:is equal '(#\a)
+          (parse-string as "a"))
+    (t:is equal '(#\a #\a #\a)
+          (parse-string as "aaa"))
+    (t:is equal '(#\a #\a #\a)
+          (parse-string as "aaaz"))
 
-(define-test parse-tag
-  :depends-on (parser-error char-parser)
-  (let ((parser (parse-tag :the-letter-a (char-parser #\a))))
-    (is char= #\a
-        (parse-string parser "a"))
+    (t:fail (parse-string as "z"))
+    (t:fail (parse-string as ""))))
 
-    (is eq :the-letter-a
-        (parser-error-expected
-          (capture-parse-error parser "z")))))
+(t:define-test collect-into-string
+  :depends-on (char-of)
+  (let ((as (collect-into-string (char-of #\a))))
 
-(define-test parse-let
-  :depends-on (predicate-parser)
-  (let ((parser (parse-let ((digit (predicate-parser #'digit-char-p))
-                            (alpha (predicate-parser #'alpha-char-p)))
-                  (cons digit alpha))))
-    (is equal (cons #\1 #\a)
-        (parse-string parser "1a"))
+    (t:is string= "a"
+          (parse-string as "a"))
+    (t:is string= "aaa"
+          (parse-string as "aaa"))
+    (t:is string= "aaa"
+          (parse-string as "aaaz"))
 
-    (is equal (cons #\2 #\b)
-        (parse-string parser "2b"))
+    (t:is string= ""
+          (parse-string as "z"))
+    (t:is string= ""
+          (parse-string as ""))))
 
-    (fail (parse-string parser "3!")
-          'parser-error)
+(t:define-test sep
+  :depends-on (char-of)
+  (let ((as (sep (char-of #\a)
+                 (char-of #\,))))
 
-    (fail (parse-string parser "!")
-          'parser-error))
+    (t:is equal '(#\a)
+          (parse-string as "a"))
 
-  (fail (eval '(parse-let (invalid-binding)
-                 :whatever)))
+    (t:is equal '(#\a #\a)
+          (parse-string as "a,a"))
 
-  (fail (eval '(parse-let ((10 20 030 05 i5025 9258))
-                 whatever))))
+    (t:is equal '(#\a #\a #\a)
+          (parse-string as "a,a,a"))
 
-(define-test digit-parser
-  (let ((decimalparser (digit-parser))
-        (hexparser (digit-parser 16)))
-    (is = 0
-        (parse-string decimalparser "0"))
+    (t:fail (parse-string as ""))
 
-    (is = 9
-        (parse-string decimalparser "9"))
+    (t:fail (parse-string as "a,a,a,"))))
 
-    (fail (parse-string decimalparser "A")
-          'parser-error)
+(t:define-test reduce!
+  :depends-on (char-if flatmap)
+  (let ((parser (reduce! (lambda (num dig) (+ (* num 10) dig))
+                         (flatmap (lambda (c) (ok (digit-char-p c)))
+                                  (char-if #'digit-char-p)))))
+    (t:is = 1
+          (parse-string parser "1"))
 
-    (is = 0
-        (parse-string hexparser "0"))
+    (t:is = 12
+          (parse-string parser "12"))
 
-    (is = 15
-        (parse-string hexparser "F"))
+    (t:is = 123
+          (parse-string parser "123"))
 
-    (is = 15
-        (parse-string hexparser "f"))
+    (t:is = 123
+          (parse-string parser "123."))
 
-    (fail (parse-string hexparser "G")
-          'parser-error)))
+    (t:fail (parse-string parser "something else")))
 
-(define-test integer-parser
-  (let ((decimalparser (integer-parser))
-        (hexparser (integer-parser 16)))
-    (is = 0
-        (parse-string decimalparser "0"))
+  (let ((parser (reduce! (lambda (cs c) (list* c cs))
+                         (char-if #'alpha-char-p)
+                         :initial-value ())))
+    (t:is equal '(#\a)
+          (parse-string parser "a"))
 
-    (is = 10
-        (parse-string decimalparser "10"))
+    (t:is equal '(#\b #\a)
+          (parse-string parser "ab"))
 
-    (is = 5
-        (parse-string decimalparser "00005"))
+    (t:is equal '(#\c #\b #\a)
+          (parse-string parser "abc"))
 
-    (is = 123
-        (parse-string decimalparser "123A"))
+    (t:is equal '(#\c #\b #\a)
+          (parse-string parser "abc."))
 
-    (fail (parse-string decimalparser "A")
-          'parser-error)
-
-    (is = 255
-        (parse-string hexparser "FF"))
-
-    (is = 255
-        (parse-string hexparser "ff"))
-
-    (fail (parse-string hexparser "G")
-          'parser-error)))
+    (t:is equal ()
+          (parse-string parser ""))))
 
 
 
 ;; JSON Tests
 
-(define-test json-numbers
-  (is = 123
+(t:define-test json-numbers
+  (t:is = 123
       (decode-json-from-string "123"))
 
-  (is = 50
+  (t:is = 50
       (decode-json-from-string "000050"))
 
-  (is = -123
+  (t:is = -123
       (decode-json-from-string "-123"))
 
-  (is close-enough 1.5
+  (t:is close-enough 1.5
       (decode-json-from-string "1.5"))
 
-  (is close-enough 1.05
+  (t:is close-enough 1.05
       (decode-json-from-string "1.05"))
 
-  (is close-enough 1e5
+  (t:is close-enough 1e5
       (decode-json-from-string "1e5"))
 
-  (is close-enough 1e5
+  (t:is close-enough 1e5
       (decode-json-from-string "1e+5"))
 
-  (is close-enough 1e-5
+  (t:is close-enough 1e-5
       (decode-json-from-string "1e-5"))
 
-  (is close-enough 15.0
+  (t:is close-enough 15.0
       (decode-json-from-string "1.5e1")))
 
-(define-test json-strings
-  (is string= "hello, world"
+(t:define-test json-strings
+  (t:is string= "hello, world"
       (decode-json-from-string "\"hello, world\""))
 
-  (is string= (coerce #(#\" #\\ #\/ #\Backspace #\Page #\Newline #\Return #\Tab) 'string)
+  (t:is string= (coerce #(#\" #\\ #\/ #\Backspace #\Page #\Newline #\Return #\Tab) 'string)
       (decode-json-from-string "\"\\\"\\\\\\/\\b\\f\\n\\r\\t\""))
 
-  (is string= "(λ (n) (* n n))"
+  (t:is string= "(λ (n) (* n n))"
       (decode-json-from-string "\"(\\u03BB (n) (* n n))\"")))
 
-(define-test json-arrays
+(t:define-test json-arrays
   :depends-on (json-numbers json-strings)
-  (is equal '(10 20 30)
+  (t:is equal '(10 20 30)
       (decode-json-from-string "[10,20,30]"))
 
-  (is equal '(10)
+  (t:is equal '(10)
       (decode-json-from-string "[10]"))
 
-  (is equal ()
+  (t:is equal ()
       (decode-json-from-string "[]"))
 
-  (is equal '(10 "string" (20 30 40))
+  (t:is equal '(10 "string" (20 30 40))
       (decode-json-from-string "[10, \"string\", [20, 30, 40]]"))
 
-  (is equal '(10 20 30)
+  (t:is equal '(10 20 30)
       (decode-json-from-string " [ 10 , 20 , 30 ] ")))
 
-(define-test json-objects
+(t:define-test json-objects
   :depends-on (json-numbers json-strings)
-  (is equal '(("key" . "value"))
+  (t:is equal '(("key" . "value"))
       (decode-json-from-string "{\"key\":\"value\"}"))
 
-  (is equal '(("one" . 1) ("two" . 2) ("three" . 3))
+  (t:is equal '(("one" . 1) ("two" . 2) ("three" . 3))
       (decode-json-from-string "{\"one\":1,\"two\":2,\"three\":3}"))
 
-  (is equal '(("object" . (("key" . "value"))))
+  (t:is equal '(("object" . (("key" . "value"))))
       (decode-json-from-string "{\"object\":{\"key\":\"value\"}}"))
 
-  (is equal '(("key" . "value") ("foo" . "bar"))
+  (t:is equal '(("key" . "value") ("foo" . "bar"))
       (decode-json-from-string " { \"key\" : \"value\" , \"foo\" : \"bar\" }")))
