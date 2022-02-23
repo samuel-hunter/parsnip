@@ -346,22 +346,22 @@
 
     (t:fail (parse-string parser "something else")))
 
-  (let ((parser (reduce! (lambda (cs c) (list* c cs))
-                         (char-if #'alpha-char-p)
-                         :initial-value ())))
-    (t:is equal '(#\a)
-          (parse-string parser "a"))
+  (let ((parser (reduce! #'* (let! ((d (char-if #'digit-char-p)))
+                               (ok (digit-char-p d)))
+                         :initial-value 1)))
+    (t:is = 2
+          (parse-string parser "2"))
 
-    (t:is equal '(#\b #\a)
-          (parse-string parser "ab"))
+    (t:is = 6
+          (parse-string parser "23"))
 
-    (t:is equal '(#\c #\b #\a)
-          (parse-string parser "abc"))
+    (t:is = 30
+          (parse-string parser "235"))
 
-    (t:is equal '(#\c #\b #\a)
-          (parse-string parser "abc."))
+    (t:is = 30
+          (parse-string parser "235."))
 
-    (t:is equal ()
+    (t:is equal 1
           (parse-string parser ""))))
 
 
@@ -435,4 +435,8 @@
       (decode-json-from-string "{\"object\":{\"key\":\"value\"}}"))
 
   (t:is equal '(("key" . "value") ("foo" . "bar"))
-      (decode-json-from-string " { \"key\" : \"value\" , \"foo\" : \"bar\" }")))
+      (decode-json-from-string " { \"key\" : \"value\" , \"foo\" : \"bar\" }"))
+
+  (t:is equal '(("key" . "value") ("foo" . "bar"))
+        (decode-json-from-string
+          (format nil "{~%  \"key\": \"value\",~%  \"foo\": \"bar\"~%}"))))
