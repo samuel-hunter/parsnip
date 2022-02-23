@@ -9,7 +9,8 @@
   (:use #:cl)
   (:import-from #:alexandria
                 #:curry
-                #:rcurry)
+                #:rcurry
+                #:string-designator)
   (:export #:parser-error
            #:parser-error-line
            #:parser-error-column
@@ -53,6 +54,9 @@
 
 
 
+(deftype function-designator ()
+  '(or function symbol))
+
 (defstruct (parse-stream (:constructor parse-stream (stream))
                          (:conc-name pstream-)
                          (:copier nil)
@@ -87,6 +91,8 @@
         (setf column (1+ column))))
   pstream)
 
+(declaim (inline peek consume))
+
 (defun peek (pstream)
   (peek-char nil (pstream-stream pstream) nil))
 
@@ -106,22 +112,28 @@
 (defun ok (value)
   "Return a parser that consumes nothing and returns the given value."
   (lambda (pstream eok cok efail cfail)
-    (declare (ignore cok efail cfail))
+    (declare (type function eok)
+             (ignore cok efail cfail))
     (funcall eok pstream value)))
 
 (defun fail (expected &optional trace)
   "Return a parser that consumes nothing and fails, reporting the expected value."
   (lambda (pstream eok cok efail cfail)
-    (declare (ignore eok cok cfail))
+    (declare (type function efail)
+             (ignore eok cok cfail))
     (funcall efail pstream expected trace)))
 
 (defun char-if (predicate &optional message)
   "Return a parser that consumes a character that satisfies the given predicate."
+  (check-type predicate function-designator)
+  (check-type message (or string-designator null))
   (unless message
     (setf message (format nil "Satisfies ~S" predicate)))
 
   (lambda (pstream eok cok efail cfail)
-    (declare (ignore eok cfail))
+    (declare (type parse-stream pstream)
+             (type function cok efail)
+             (ignore eok cfail))
     (let ((actual (peek pstream)))
       (if (and actual (funcall predicate actual))
           (funcall cok (consume pstream) actual)
@@ -134,13 +146,16 @@
 
 (defun char-in (charbag &optional message)
   "Return a parser that consumes a character that's only in the given charbag."
+  (check-type charbag sequence)
   (char-if (rcurry #'position charbag)
            (or message (format nil "One of ~S" charbag))))
 
 (defun eof (&optional value)
   "Return a parser that consumes nothing and returns the given value (or nil) if the input stream is exhausted."
   (lambda (pstream eok cok efail cfail)
-    (declare (ignore cok cfail))
+    (declare (type parse-stream pstream)
+             (type function eok efail)
+             (ignore cok cfail))
     (if (peek pstream)
         (funcall efail pstream "EOF" ())
         (funcall eok pstream value))))
@@ -150,6 +165,7 @@
 (defun flatmap (function parser)
   "Return a new parser that applies the given function to the parser's result, and then runs the parser the function returns.
 This function forms the basis of stringing multiple parsers together."
+  (check-type function function-designator)
   (lambda (pstream eok cok efail cfail)
     (funcall parser pstream
              ;; eok
@@ -179,6 +195,7 @@ This function forms the basis of stringing multiple parsers together."
 (defun handle (parser handler)
   "Return a new parser that, on failure, applies the handler function to the parser's expected value and parse trace (as a list), and then runs the parser the handler returns.
 HANDLE does not handle partial-parse failures, which can be recovered from via HANDLE-REWIND."
+  (check-type handler function-designator)
   (lambda (pstream eok cok efail cfail)
     (funcall parser pstream
              ;; eok
@@ -195,6 +212,7 @@ HANDLE does not handle partial-parse failures, which can be recovered from via H
 (defun handle-rewind (parser handler)
   "Return a new parser that saves the stream's current position and, on failure, rewinds the stream, applies the handler function to the parser's expected value and parse trace (as a list), and then runs the parser the handler returns.
 HANDLE-REWIND only functions if the parser is given a seekable stream."
+  (check-type handler function-designator)
   (lambda (pstream eok cok efail cfail)
     (let ((snapshot (save pstream)))
       (funcall parser pstream
@@ -335,11 +353,13 @@ If INITIAL-VALUE is supplied, the parser may succeed without parsing by returnin
 
 (defun digit (&optional (radix 10))
   "Consume and return the number value of a digit."
+  (check-type radix (integer 2 36))
   (let! ((d (char-if (rcurry #'digit-char-p radix))))
     (ok (digit-char-p d radix))))
 
 (defun natural (&optional (radix 10))
   "Consume and return a natural number."
+  (check-type radix (integer 2 36))
   (reduce! (lambda (number d)
              (+ (* number radix) d))
            (digit radix)))
@@ -369,9 +389,10 @@ If INITIAL-VALUE is supplied, the parser may succeed without parsing by returnin
 ;; front-facing for library consumers.
 
 (define-condition parser-error (stream-error)
-  ((line :initarg :line :reader parser-error-line)
-   (column :initarg :column :reader parser-error-column)
-   (expected :initarg :expected :reader parser-error-expected)
+  ((line :initarg :line :reader parser-error-line :type integer)
+   (column :initarg :column :reader parser-error-column :type integer)
+   (expected :initarg :expected :reader parser-error-expected
+             :type string-designator)
    (return-trace :initarg :return-trace :reader parser-error-return-trace))
   (:report (lambda (condition stream)
              (with-accessors ((err-stream stream-error-stream)
@@ -402,6 +423,8 @@ its expected value, and a return trace of parsers."))
 
 (defun parse (parser stream)
   "Run a parser through a given stream and raise any failures as a PARSER-ERROR."
+  (check-type parser function-designator)
+  (check-type stream stream)
   (flet ((take-value (pstream value)
            (declare (ignore pstream))
            value))
