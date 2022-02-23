@@ -11,7 +11,7 @@ Monadic parsers instead model parsers as smaller parsers that can compose togeth
 Other parser combinator libraries I've found for Common Lisp are either too macro-heavy for me, or warn that they are not production-ready.
 I don't trust third-party libraries that don't trust themselves, and so I've made my own, going for a simple interface targeted for public consumption.
 
-Parsnip targets user-facing compilers, interpreters, or other readers of character-based languages, where end-users would like to know information when input fails to parse.
+Parsnip targets user-facing compilers, interpreters, or other readers of character-based languages, where programs would like to recover from or give insight about parser errors.
 Parsnip does **not** target performance-intensive or byte-based decoders, such as those used in network stacks, or JSON/XML decoders for request data for web applications.
 
 ## Contributions
@@ -26,7 +26,7 @@ Parsnip is available on Quicklisp:
 (ql:quickload :parsnip)
 ```
 
-Parsnip can also be loaded remotely.
+Parsnip can also be installed locally.
 Make sure to also install the sole dependency Alexandria:
 
 ```sh
@@ -86,8 +86,8 @@ Parsnip aims to provide rich information for parsers aimed at end-users:
     (parser-error (c)
       (values (parser-error-line c)
               (parser-error-column c)))))
-1
-7
+=> 1
+   7
 
 (handler-case (decode-json-from-string "[10,20,{\"foo\":\"bar\",}]")
   (parser-error (c)
@@ -154,7 +154,15 @@ I plan to be writing a parser for [ABC notation v2.1](http://abcnotation.com/wik
 
 ### [Function] **ok** *value* => *parser*
 
-Return a parser that consumes nothing and returns the given value.
+Return a parser that consumes nothing and returns the given value:
+
+```lisp
+(with-input-from-string (s "abc123")
+  (list (parse (ok :hello) s)
+        (alexandria:read-stream-content-into-string)))
+
+=> (:hello "abc123")
+```
 
 ### [Function] **fail** *expected &optional trace* => *parser*
 
@@ -213,6 +221,8 @@ Return a parser that strings together all given parsers and returns the second p
 
 Return a parser that tries each given parser in order (until a partial-parse failure) and returns the result of the first successful parse.
 
+If all parsers fail, then the parser error accumulates a list of all possible expected values.
+
 ### [Function] **collect** *parser* => *list-parser*
 
 Return a parser that runs the given parser until failure, and collects all results into a list.
@@ -259,12 +269,19 @@ Define a parser as a function. It can then be referenced as a function designato
 
 Run a parser through a given stream and raise any failures as a `parser-error`.
 
-### [Condition] **parser-error**
+### [Condition] **parser-error** *(stream-error)*
 
-### [Function] **parser-error-line**, **parser-error-column** *parser-error* => *integer*
+Parser errors are raised by `parse` when a parser cannot recover from an error.
+Parser error readers provide the line and column a parser ended at,
+the stack-trace of `defparser`-defined parsers and the lines and columns each parser started at,
+and an object that describes what the parser expected:
 
-Return the line and column that the parser stopped at. The parser assumes the line starts at 1 and column starts at 0 before beginning. Newlines count as EOL and tabs count as one space.
+- **stream-error-stream** *stream-error* => *stream*
+- **parser-error-line** *parser-error* => *number*
+- **parser-error-column** *parser-error* => *number*
+- **parser-error-expected** *parser-error* => *object*
+- **parser-error-stack-trace** *parser-error* => *stack-trace*
 
-### [Function] **parser-error-expected** *parser-error* => *string-designator*
+A *stack-trace* is a list of `(parser-name line column)`-structured objects that report where each element of the current parse stack was reading each item.
 
-Return a description of the item the parser expected.
+For both the *parser-error* and *stack-trace*, lines start at `1` and columns start at `0`, and is initialized per **parse** call.

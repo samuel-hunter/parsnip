@@ -236,11 +236,29 @@ HANDLE-REWIND only functions if the parser is given a seekable stream."
 
 (defun or! (&rest parsers)
   "Return a parser that tries each given parser in order (until a partial-parse failure) and returns the result of the first successful parse."
-  (reduce (lambda (parser next)
-            (handle parser
-                    (constantly next)))
-          parsers
-          :from-end t))
+  (flet ((handle* (parser next)
+           (lambda (pstream eok cok efail cfail)
+             (funcall parser pstream
+                      eok cok
+                      ;; efail
+                      (lambda (pstream* expected trace)
+                        (declare (ignore trace))
+                        (funcall next pstream*
+                                 eok cok
+                                 ;; efail
+                                 (lambda (pstream** expected2 trace)
+                                   (funcall efail pstream**
+                                            (cons expected expected2)
+                                            trace))
+                                 cfail))
+                      ;; cfail
+                      cfail))))
+    (reduce #'handle*
+            parsers
+            :from-end t
+            :initial-value (lambda (pstream eok cok efail cfail)
+                             (declare (ignore eok cok cfail))
+                             (funcall efail pstream () ())))))
 
 (defun collect (parser)
   "Return a parser that runs the given parser until failure, and collects all results into a list."
@@ -332,8 +350,18 @@ If INITIAL-VALUE is supplied, the parser may succeed without parsing by returnin
   "Define a parser as a function. It can then be referenced as a function designator."
   `(let ((parser ,form))
      (defun ,name (pstream eok cok efail cfail)
-       (funcall parser pstream
-                eok cok efail cfail))))
+       (let ((line (pstream-line pstream))
+             (column (pstream-column pstream)))
+         (funcall parser pstream
+                  eok
+                  cok
+                  (lambda (pstream expected trace)
+                    (funcall efail pstream expected
+                             (cons (list ',name line column) trace)))
+                  (lambda (pstream expected trace)
+                    (funcall cfail pstream expected
+                             (cons (list ',name line column)
+                                   trace))))))))
 
 
 
@@ -358,9 +386,7 @@ If INITIAL-VALUE is supplied, the parser may succeed without parsing by returnin
                        err-stream))))
   (:documentation
     "If a parser fails to read text, it signals a parser-error, containing a stream,
-its expected value, and a return trace of parsers."
-    )
-  )
+its expected value, and a return trace of parsers."))
 
 (defun signal-failure (pstream expected return-trace)
   "Signal an error depending on the given fail."

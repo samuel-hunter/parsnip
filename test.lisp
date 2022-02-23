@@ -249,7 +249,12 @@
           (parse-string a-or-b-or-c "b"))
     (t:is char= #\c
           (parse-string a-or-b-or-c "c"))
+
     (t:fail (parse-string a-or-b-or-c "z"))
+
+    (t:is equal '(#\a #\b #\c)
+          (parser-error-expected
+            (capture-parse-error a-or-b-or-c "z")))
 
     (t:is char= #\a
           (parse-string a-or-b-or-default "a"))
