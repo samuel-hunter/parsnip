@@ -1,6 +1,6 @@
 image: debian/stable
 environment:
-  ROSWELL_RELEASE: 21.06.14.110
+  ROSWELL_RELEASE: 21.10.14.111
   ROSWELL_HOME: /home/build/.roswell
   ROSWELL_BRANCH: release
 packages:
