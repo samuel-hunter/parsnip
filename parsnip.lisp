@@ -391,8 +391,7 @@ If INITIAL-VALUE is supplied, the parser may succeed without parsing by returnin
 (define-condition parser-error (stream-error)
   ((line :initarg :line :reader parser-error-line :type integer)
    (column :initarg :column :reader parser-error-column :type integer)
-   (expected :initarg :expected :reader parser-error-expected
-             :type string-designator)
+   (expected :initarg :expected :reader parser-error-expected)
    (return-trace :initarg :return-trace :reader parser-error-return-trace))
   (:report (lambda (condition stream)
              (with-accessors ((err-stream stream-error-stream)
