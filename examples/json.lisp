@@ -123,7 +123,7 @@
                          (cons (+ (* val 10) dig)
                                (1+ ndigits))))
                      (digit)
-                     :initial-value (cons 0 0))))
+                     :initial-parser (ok (cons 0 0)))))
             (ok (destructuring-bind (val . ndigits) val-and-digits
                   (/ val (expt 10 ndigits)))))))
 

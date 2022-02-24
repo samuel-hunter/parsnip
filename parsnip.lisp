@@ -354,10 +354,10 @@ TRY! only works when the parser is given a seekable stream."
                                 value-parser))))
     (ok (list* first rest))))
 
-(defun reduce! (function parser &key (initial-value nil ivp))
+(defun reduce! (function parser &key initial-parser)
   "Return a parser that keeps running until failure, and reduces its results into one value.
-If INITIAL-VALUE is supplied, the parser may succeed without parsing by returning INITIAL-VALUE."
-  (let! ((initial-value (if ivp (ok initial-value) parser)))
+If INITIAL-PARSER is supplied, the parser may succeed without calling FUNCTION by returning INITIAL-PARSER's response."
+  (let! ((initial-value (or initial-parser parser)))
     (let@ ((result initial-value))
       (handle
         (let! ((obj parser))

@@ -427,7 +427,7 @@
 
   (let ((parser (reduce! #'* (let! ((d (char-if #'digit-char-p)))
                                (ok (digit-char-p d)))
-                         :initial-value 1)))
+                         :initial-parser (ok 1))))
     (t:is = 2
           (parse-string parser "2"))
 

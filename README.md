@@ -148,7 +148,8 @@ I recognize these as non-breaking changes:
 The [JSON example](./examples/json.lisp) matches close to the grammar notation of the [RFC8259 JSON specification](https://datatracker.ietf.org/doc/html/rfc8259).
 Outside of a couple outliers (e.g. the value definition is moved to the end), the code is laid out nearly section-by-section as stated in the RFC.
 
-I plan to be writing a parser for [ABC notation v2.1](http://abcnotation.com/wiki/abc:standard:v2.1) in the future.
+The [Tiny C example](./examples/tiny-c.lisp) is an extremely bare-bones subset of C, with a single primitive integer type and limited mechanisms.
+It demonstrates an example of what patterns can be used to parse C-family grammars with parser combinators.
 
 ## API
 
@@ -250,11 +251,11 @@ Return a parser that runs the given character parser until failure, and collects
 
 Return a parser that accepts a sequence of `value-parser` input separated by `sep-parser` input; such as values separated by commas.
 
-### [Function] **reduce!** *function parser &key initial-value* => *parser*
+### [Function] **reduce!** *function parser &key initial-parser* => *parser*
 
 Return a parser that keeps running until failure, and reduces its result into one value.
 
-If `initial-value` is supplied, the parser may succeed without parsing by returning `initial-value`.
+If `initial-parser` is supplied, the parser may succeed without calling FUNCTION by returning INITIAL-PARSER's response.
 
 ### [Function] **skip** *parser* => *parser*
 
