@@ -180,6 +180,11 @@ Return a parser that consumes the given character.
 
 Return a parser that consumes a character in the given character bag.
 
+### [Function] **string-of** *string &optional message* => *string-parser*
+
+Return a parser that consumes the given simple string.
+This parser may have consumed input on a failure.
+
 ### [Function] **eof** *&optional value* => *parser*
 
 Return a parser that consumes nothing and returns the given value (or `nil`) if the input stream is exhausted.
@@ -203,7 +208,13 @@ Return a new parser that, on failure, applies the handler function to the parser
 
 Return a new parser that saves the stream's current position and, on failure, rewinds the stream, applies the handler function to the parser's expected value and parse trace (as a list), and then runs the parser the handler returns.
 
-`handle-rewind` only functions if the parser is given a seekable stream.
+`handle-rewind` only works when the parser is given a seekable stream.
+
+### [Function] **try!** *parser* => *parser*
+
+Return a new parser that saves the stream's current position and, on failure, rewinds the stream before passing the failure down.
+
+`try!` only works when the parser is given a seekable stream.
 
 ### [Function] **progn!** *&rest parsers* => *parser*
 

@@ -7,6 +7,8 @@
   (:use #:cl
         #:xyz.shunter.parsnip
         #:xyz.shunter.parsnip.examples.json)
+  (:import-from #:alexandria
+                #:curry)
   (:local-nicknames (#:t #:parachute)))
 
 (in-package #:xyz.shunter.parsnip.test)
@@ -42,8 +44,10 @@
         (parse-string (ok :hello) "")))
 
 (t:define-test fail
-  (t:fail (parse-string (fail "terrible!") "whatever"))
-  (t:fail (parse-string (fail "terrible!") ""))
+  (t:fail (parse-string (fail "terrible!") "whatever")
+          'parser-error)
+  (t:fail (parse-string (fail "terrible!") "")
+          'parser-error)
 
   (t:is string= "terrible!"
         (parser-error-expected
@@ -56,8 +60,10 @@
   (t:is char= #\z
       (parse-string (char-if #'alpha-char-p) "z"))
 
-  (t:fail (parse-string (char-if #'alpha-char-p) "0"))
-  (t:fail (parse-string (char-if #'alpha-char-p) ""))
+  (t:fail (parse-string (char-if #'alpha-char-p) "0")
+          'parser-error)
+  (t:fail (parse-string (char-if #'alpha-char-p) "")
+          'parser-error)
 
   (t:is string= "letter"
         (parser-error-expected
@@ -67,12 +73,19 @@
   :depends-on (char-if)
   (t:is char= #\a
         (parse-string (char-of #\a) "a"))
-  (t:fail (parse-string (char-of #\a) "z"))
-  (t:fail (parse-string (char-of #\a) nil))
+  (t:fail (parse-string (char-of #\a) "z")
+          'parser-error)
+  (t:fail (parse-string (char-of #\a) "")
+          'parser-error)
 
   (t:is char= #\z
         (parse-string (char-of #\z) "z"))
-  (t:fail (parse-string (char-of #\z) "a")))
+  (t:fail (parse-string (char-of #\z) "a")
+          'parser-error)
+
+  (t:is string= (format nil "~S" #\a)
+        (parser-error-expected
+          (capture-parse-error (char-of #\a) "z"))))
 
 (t:define-test char-in
   :depends-on (char-if)
@@ -83,8 +96,28 @@
   (t:is char= #\c
         (parse-string (char-in "abc") "c"))
 
-  (t:fail (parse-string (char-in "abc") "z"))
-  (t:fail (parse-string (char-in "abc") "")))
+  (t:fail (parse-string (char-in "abc") "z")
+          'parser-error)
+  (t:fail (parse-string (char-in "abc") "")
+          'parser-error))
+
+(t:define-test string-of
+  (t:is string= "hello"
+        (parse-string (string-of "hello") "hello"))
+
+  (t:is string= "hello"
+        (parse-string (string-of "hello") "hello world"))
+
+  (t:is string= ""
+        (parse-string (string-of "") "something"))
+
+  (t:is string= "a"
+        (parse-string (string-of "a") "a"))
+
+  (t:fail (parse-string (string-of "something") "other thing")
+          'parser-error)
+  (t:fail (parse-string (string-of "something") "")
+          'parser-error))
 
 (t:define-test eof
   (t:is eq nil
@@ -93,7 +126,8 @@
   (t:is eq :end
         (parse-string (eof :end) ""))
 
-  (t:fail (parse-string (eof) "something")))
+  (t:fail (parse-string (eof) "something")
+          'parser-error))
 
 (t:define-test flatmap
   :depends-on (char-if)
@@ -108,9 +142,11 @@
     (t:is char= #\z
           (parse-string parser "z"))
 
-    (t:fail (parse-string parser "1"))
+    (t:fail (parse-string parser "1")
+            'parser-error)
 
-    (t:fail (parse-string parser "d"))
+    (t:fail (parse-string parser "d")
+            'parser-error)
 
     (t:is string= "not d"
           (parser-error-expected
@@ -127,7 +163,8 @@
     (t:is char= #\1
           (parse-string parser "Z1"))
 
-    (t:fail (parse-string parser "Z"))))
+    (t:fail (parse-string parser "Z")
+            'parser-error)))
 
 (t:define-test let!
   :depends-on (char-if flatmap)
@@ -148,7 +185,8 @@
     (t:is = 123
           (parse-string parser "123"))
 
-    (t:fail (parse-string parser "12"))))
+    (t:fail (parse-string parser "12")
+            'parser-error)))
 
 (t:define-test progn!
   :depends-on (char-of)
@@ -160,17 +198,20 @@
     (t:is char= #\a
           (parse-string a "a"))
 
-    (t:fail (parse-string a "z"))
+    (t:fail (parse-string a "z")
+            'parser-error)
 
     (t:is char= #\b
           (parse-string ab "ab"))
 
-    (t:fail (parse-string ab "az"))
+    (t:fail (parse-string ab "az")
+            'parser-error)
 
     (t:is char= #\c
           (parse-string abc "abc"))
 
-    (t:fail (parse-string abc "abz"))))
+    (t:fail (parse-string abc "abz")
+            'parser-error)))
 
 (t:define-test handle
   :depends-on (eof char-of progn!)
@@ -190,14 +231,40 @@
     (t:is eq :recovered
           (parse-string parser "cd"))
 
-    (t:fail (parse-string parser "ac"))))
+    (t:fail (parse-string parser "ac")
+            'parser-error)))
 
 (t:define-test handle-rewind
-  :depends-on (progn! let!)
-  (let ((parser (handle-rewind (progn! (char-of #\a) (char-of #\b))
+  :depends-on (ok string-of)
+  (let ((parser (handle-rewind (string-of "ab")
                                (constantly (ok :recovered)))))
+    (t:is string= "ab"
+          (parse-string parser "ab"))
+
     (t:is eq :recovered
           (parse-string parser "ac"))))
+
+(t:define-test try!
+  :depends-on (string-of or!)
+  (let ((parser (or! (try! (string-of "aa"))
+                     (try! (string-of "ab"))
+                     (try! (string-of "ac")))))
+    (t:is string= "aa"
+          (parse-string parser "aa"))
+
+    (t:is string= "ab"
+          (parse-string parser "ab"))
+
+    (t:is string= "ac"
+          (parse-string parser "ac"))
+
+    (t:fail (parse-string parser "az")
+            'parser-error)
+
+    (t:is equal (mapcar (curry #'format nil "~S")
+                        '("aa" "ab" "ac"))
+          (parser-error-expected
+            (capture-parse-error parser "az")))))
 
 (t:define-test prog1!
   :depends-on (char-of)
@@ -208,17 +275,20 @@
 
     (t:is char= #\a (parse-string a "a"))
 
-    (t:fail (parse-string a "z"))
+    (t:fail (parse-string a "z")
+            'parser-error)
 
     (t:is char= #\a
           (parse-string ab "ab"))
 
-    (t:fail (parse-string ab "az"))
+    (t:fail (parse-string ab "az")
+            'parser-error)
 
     (t:is char= #\a
           (parse-string abc "abc"))
 
-    (t:fail (parse-string abc "abz"))))
+    (t:fail (parse-string abc "abz")
+            'parser-error)))
 
 (t:define-test prog2!
   :depends-on (char-of)
@@ -228,12 +298,14 @@
     (t:is char= #\b
           (parse-string ab "ab"))
 
-    (t:fail (parse-string ab "az"))
+    (t:fail (parse-string ab "az")
+            'parser-error)
 
     (t:is char= #\b
           (parse-string abc "abc"))
 
-    (t:fail (parse-string abc "abz"))))
+    (t:fail (parse-string abc "abz")
+            'parser-error)))
 
 (t:define-test or!
   :depends-on (char-of ok)
@@ -250,9 +322,11 @@
     (t:is char= #\c
           (parse-string a-or-b-or-c "c"))
 
-    (t:fail (parse-string a-or-b-or-c "z"))
+    (t:fail (parse-string a-or-b-or-c "z")
+            'parser-error)
 
-    (t:is equal '(#\a #\b #\c)
+    (t:is equal (mapcar (curry #'format nil "~S")
+                        '(#\a #\b #\c))
           (parser-error-expected
             (capture-parse-error a-or-b-or-c "z")))
 
@@ -290,8 +364,10 @@
     (t:is equal '(#\a #\a #\a)
           (parse-string as "aaaz"))
 
-    (t:fail (parse-string as "z"))
-    (t:fail (parse-string as ""))))
+    (t:fail (parse-string as "z")
+            'parser-error)
+    (t:fail (parse-string as "")
+            'parser-error)))
 
 (t:define-test collect-into-string
   :depends-on (char-of)
@@ -323,9 +399,11 @@
     (t:is equal '(#\a #\a #\a)
           (parse-string as "a,a,a"))
 
-    (t:fail (parse-string as ""))
+    (t:fail (parse-string as "")
+            'parser-error)
 
-    (t:fail (parse-string as "a,a,a,"))))
+    (t:fail (parse-string as "a,a,a,")
+            'parser-error)))
 
 (t:define-test reduce!
   :depends-on (char-if flatmap)
@@ -344,7 +422,8 @@
     (t:is = 123
           (parse-string parser "123."))
 
-    (t:fail (parse-string parser "something else")))
+    (t:fail (parse-string parser "something else")
+            'parser-error))
 
   (let ((parser (reduce! #'* (let! ((d (char-if #'digit-char-p)))
                                (ok (digit-char-p d)))

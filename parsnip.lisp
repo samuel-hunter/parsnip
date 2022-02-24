@@ -22,12 +22,14 @@
            #:char-if
            #:char-of
            #:char-in
+           #:string-of
            #:eof
 
            #:flatmap
            #:let!
            #:handle
            #:handle-rewind
+           #:try!
 
            #:progn!
            #:prog1!
@@ -80,7 +82,8 @@
     (destructuring-bind (position line* column*) snapshot
       (file-position stream position)
       (setf line line*
-            column column*))))
+            column column*)))
+  pstream)
 
 (defun advance-pstream (pstream c)
   (with-accessors ((line pstream-line)
@@ -142,13 +145,39 @@
 (defun char-of (char &optional message)
   "Return a parser that consumes the given character."
   (check-type char character)
-  (char-if (curry #'char= char) (or message char)))
+  (char-if (curry #'char= char)
+           (or message (format nil "~S" char))))
 
 (defun char-in (charbag &optional message)
   "Return a parser that consumes a character that's only in the given charbag."
   (check-type charbag sequence)
   (char-if (rcurry #'position charbag)
            (or message (format nil "One of ~S" charbag))))
+
+(defun string-of (string &optional message)
+  "Return a parser that consumes the given simple string.
+This parser may have consumed input on a failure."
+  (check-type string simple-string)
+  ;; Reduce to cheaper parsers on edge cases
+  (when (string= string "")
+    (return-from string-of (ok "")))
+
+  (unless message
+    (setf message (format nil "~S" string)))
+
+  (let ((length (length string)))
+    (lambda (pstream eok cok efail cfail)
+      (declare (type parse-stream pstream)
+               (type function cok efail cfail)
+               (ignore eok))
+      (let* ((actual (make-string length))
+             (nread (read-sequence actual (pstream-stream pstream))))
+        (cond
+          ((< nread length)
+           (funcall (if (zerop nread) efail cfail) pstream message ()))
+          ((string= string actual)
+           (funcall cok pstream actual))
+          (t (funcall cfail pstream message ())))))))
 
 (defun eof (&optional value)
   "Return a parser that consumes nothing and returns the given value (or nil) if the input stream is exhausted."
@@ -211,7 +240,7 @@ HANDLE does not handle partial-parse failures, which can be recovered from via H
 
 (defun handle-rewind (parser handler)
   "Return a new parser that saves the stream's current position and, on failure, rewinds the stream, applies the handler function to the parser's expected value and parse trace (as a list), and then runs the parser the handler returns.
-HANDLE-REWIND only functions if the parser is given a seekable stream."
+HANDLE-REWIND only works when the parser is given a seekable stream."
   (check-type handler function-designator)
   (lambda (pstream eok cok efail cfail)
     (let ((snapshot (save pstream)))
@@ -228,6 +257,11 @@ HANDLE-REWIND only functions if the parser is given a seekable stream."
                (lambda (pstream* expected trace)
                  (funcall (funcall handler expected trace)
                           (rewind pstream* snapshot) eok cok efail cfail))))))
+
+(defun try! (parser)
+  "Return a new parser that saves the stream's current position and, on failure, rewinds the stream before passing the failure down.
+TRY! only works when the parser is given a seekable stream."
+  (handle-rewind parser #'fail))
 
 (defun progn! (&rest parsers)
   "Return a parser that strings together all given parsers and returns the last parser's result."
@@ -398,7 +432,7 @@ If INITIAL-VALUE is supplied, the parser may succeed without parsing by returnin
                               (line parser-error-line)
                               (column parser-error-column)
                               (expected parser-error-expected)) condition
-               (format stream "~A:~D:~D: Expected ~S on ~S"
+               (format stream "~A:~D:~D: Expected ~A on ~S"
                        (ignore-errors (pathname err-stream))
                        line
                        column
