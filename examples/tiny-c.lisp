@@ -51,10 +51,11 @@
 
 ;; ident
 (defparser ident ()
-  (let! ((first (char-if #'alpha-char-p))
+  (trim-ws
+    (let! ((first (char-if #'alpha-char-p))
          (rest (collect-into-string
                  (char-if #'alphanumericp))))
-    (ok (format nil "~C~A" first rest))))
+    (ok (format nil "~C~A" first rest)))))
 
 ;; primary := ident | num | "(" expr ")"
 (defparser primary ()

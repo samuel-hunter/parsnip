@@ -12,9 +12,14 @@ fib(n) {
 	while (n > 0) {
 		b = b + a;
 		a = b - a;
+		n = n - 1;
 	}
 
 	return a;
+}
+
+add(a, b) {
+	return a + b;
 }
 
 main() {

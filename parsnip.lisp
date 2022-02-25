@@ -182,7 +182,8 @@ This parser may have consumed input on a failure."
              (nread (read-sequence actual (pstream-stream pstream))))
         (cond
           ((< nread length)
-           (funcall (if (zerop nread) efail cfail) pstream message ()))
+           (funcall (if (zerop nread) efail cfail)
+                    pstream message ()))
           ((string= string actual)
            (funcall cok pstream actual))
           (t (funcall cfail pstream message ())))))))

@@ -6,7 +6,8 @@
 (defpackage #:xyz.shunter.parsnip.test
   (:use #:cl
         #:xyz.shunter.parsnip
-        #:xyz.shunter.parsnip.examples.json)
+        #:xyz.shunter.parsnip.examples.json
+        #:xyz.shunter.parsnip.examples.tiny-c)
   (:import-from #:alexandria
                 #:curry)
   (:local-nicknames (#:t #:parachute)))
@@ -242,29 +243,10 @@
           (parse-string parser "ab"))
 
     (t:is eq :recovered
-          (parse-string parser "ac"))))
-
-(t:define-test try!
-  :depends-on (string-of or!)
-  (let ((parser (or! (try! (string-of "aa"))
-                     (try! (string-of "ab"))
-                     (try! (string-of "ac")))))
-    (t:is string= "aa"
-          (parse-string parser "aa"))
-
-    (t:is string= "ab"
-          (parse-string parser "ab"))
-
-    (t:is string= "ac"
           (parse-string parser "ac"))
 
-    (t:fail (parse-string parser "az")
-            'parser-error)
-
-    (t:is equal (mapcar (curry #'format nil "~S")
-                        '("aa" "ab" "ac"))
-          (parser-error-expected
-            (capture-parse-error parser "az")))))
+    (t:is eq :recovered
+          (parse-string parser ""))))
 
 (t:define-test prog1!
   :depends-on (char-of)
@@ -336,6 +318,28 @@
           (parse-string a-or-b-or-default "b"))
     (t:is eq :default
           (parse-string a-or-b-or-default "z"))))
+
+(t:define-test try!
+  :depends-on (string-of or!)
+  (let ((parser (or! (try! (string-of "aa"))
+                     (try! (string-of "ab"))
+                     (try! (string-of "ac")))))
+    (t:is string= "aa"
+          (parse-string parser "aa"))
+
+    (t:is string= "ab"
+          (parse-string parser "ab"))
+
+    (t:is string= "ac"
+          (parse-string parser "ac"))
+
+    (t:fail (parse-string parser "az")
+            'parser-error)
+
+    (t:is equal (mapcar (curry #'format nil "~S")
+                        '("aa" "ab" "ac"))
+          (parser-error-expected
+            (capture-parse-error parser "az")))))
 
 (t:define-test collect
   :depends-on (char-of)
@@ -519,3 +523,99 @@
   (t:is equal '(("key" . "value") ("foo" . "bar"))
         (decode-json-from-string
           (format nil "{~%  \"key\": \"value\",~%  \"foo\": \"bar\"~%}"))))
+
+
+
+;; Tiny C Tests
+
+(t:define-test c-function
+  (t:is equal '((:function "empty" ()))
+        (parse-tiny-c-from-string
+          "empty(){}"))
+
+  (t:is equal '((:function "empty" ()))
+        (parse-tiny-c-from-string
+          "  empty  (  )  {  }  "))
+
+  (t:is equal '((:function "emptyWithArg" ("a")))
+        (parse-tiny-c-from-string
+          "emptyWithArg(a) {}"))
+
+  (t:is equal '((:function "emptyWithArgs" ("a" "b" "c")))
+        (parse-tiny-c-from-string
+          "emptyWithArgs(a, b, c) {}")))
+
+(t:define-test c-statements
+  (t:is equal '((:function "block" ()
+                 (:block)
+                 (:block)
+                 (:block (:block) (:block))))
+        (parse-tiny-c-from-string
+          "block() { {} {  }  {{}{}} }"))
+
+  (t:is equal '((:function "returnFn" ()
+                 (:return 10)
+                 (:return 20)
+                 (:return "a")))
+        (parse-tiny-c-from-string
+          "returnFn() { return 10; return 20;    return     a   ; }"))
+
+  (t:is equal '((:function "whileFn" ()
+                 (:while 1 (:block))
+                 (:while "a" (:while "b" (:expr "c")))))
+        (parse-tiny-c-from-string
+          "whileFn() { while (1) {}   while (a) while (b) c; }"))
+
+  (t:is equal '((:function "ifFn" ()
+                 (:if 1 (:block))
+                 (:if "a" (:if "b" (:expr "c")))))
+        (parse-tiny-c-from-string
+          "ifFn() { if (1) {}    if (a) if (b) c; }")))
+
+(t:define-test c-expressions
+  (t:is equal '((:function "primary" ()
+                 (:expr 10)
+                 (:expr "a")
+                 (:expr 10)))
+        (parse-tiny-c-from-string
+          "primary() { 10; a; (10); }"))
+
+  (t:is equal '((:function "calls" ()
+                 (:expr (:call "foo"))
+                 (:expr (:call "add" 1 2))
+                 (:expr (:call (:call (:call "fun"))))))
+        (parse-tiny-c-from-string
+          "calls() { foo(); add(1, 2); fun()()(); }"))
+
+  (t:is equal '((:function "binary" ()
+                 (:expr (#\+ 10 20))
+                 (:expr (#\* 30 40))
+                 (:expr ("==" 1 1))
+                 (:expr (#\+ (#\* 1 2) (#\* 3 4)))))
+        (parse-tiny-c-from-string
+          "binary() { 10 + 20;   30 * 40;   1 == 1;   1 * 2 + 3 * 4; }")))
+
+(t:define-test tiny-c-example
+  (t:is equal '((:function "fact" ("n")
+                 (:if ("==" "n" 0)
+                  (:return 1))
+                 (:return (#\* "n" (:call "fact" (#\- "n" 1)))))
+                (:function "fib" ("n")
+                 (:expr (:assign "a" 0))
+                 (:expr (:assign "b" 1))
+                 (:while (#\> "n" 0)
+                  (:block
+                    (:expr (:assign "b" (#\+ "b" "a")))
+                    (:expr (:assign "a" (#\- "b" "a")))
+                    (:expr (:assign "n" (#\- "n" 1)))))
+                 (:return "a"))
+                (:function "add" ("a" "b")
+                 (:return (#\+ "a" "b")))
+                (:function "main" ()
+                 (:expr (:call "sayn" (:call "fib" 10)))
+                 (:expr (:call "sayn" (:call "fact" 10)))
+                 (:return 0)))
+        (with-open-file (file (asdf:system-relative-pathname
+                                :parsnip/examples
+                                #P"examples/tiny-c.c"))
+          (parse-tiny-c file))))
