@@ -12,7 +12,7 @@ Other parser combinator libraries I've found for Common Lisp are either too macr
 I don't trust third-party libraries that don't trust themselves, and so I've made my own, going for a simple interface targeted for public consumption.
 
 Parsnip targets user-facing compilers, interpreters, or other readers of character-based languages, where programs would like to recover from or give insight about parser errors.
-Parsnip does **not** target performance-intensive or byte-based decoders, such as those used in network stacks, or JSON/XML decoders for request data for web applications.
+Parsnip does **not** target performance-intensive or byte-based decoders, such as those used in network stacks, or JSON/XML decoders for request data for high-performance web applications.
 
 ## Contributions
 
@@ -151,6 +151,15 @@ Outside of a couple outliers (e.g. the value definition is moved to the end), th
 The [Tiny C example](./examples/tiny-c.lisp) is an extremely bare-bones subset of C, with a single primitive integer type and limited mechanisms.
 It demonstrates an example of what patterns can be used to parse C-family grammars with parser combinators.
 
+## Concepts
+
+Parsers are given four "tracks" of continuations: success/failure with consumed input, and "empty" success/failure (that is, without consumed output).
+Most combinators that handle failures, only handle empty failures. The two exceptions are `handle-rewind` and `try!`, which saves the input stream's position and rewinds to an "empty" state before handling the failure.
+A consumed success only matters to retrack all future empty continuations to consumed continuations (so a consumed success followed by an empty failure counts as a consumed failure).
+
+This model is used by Haskell's [parsec](https://hackage.haskell.org/package/parsec) and [megaparsec](https://github.com/mrkkrp/megaparsec) libraries.
+I tried to use a simple ok/fail model, but after writing the example JSON and Tiny C files, found that this model works best.
+
 ## API
 
 ### [Function] **ok** *value* => *parser*
@@ -285,15 +294,15 @@ Run a parser through a given stream and raise any failures as a `parser-error`.
 
 Parser errors are raised by `parse` when a parser cannot recover from an error.
 Parser error readers provide the line and column a parser ended at,
-the stack-trace of `defparser`-defined parsers and the lines and columns each parser started at,
+the return-trace of `defparser`-defined parsers and the lines and columns each parser started at,
 and an object that describes what the parser expected:
 
 - **stream-error-stream** *stream-error* => *stream*
 - **parser-error-line** *parser-error* => *number*
 - **parser-error-column** *parser-error* => *number*
 - **parser-error-expected** *parser-error* => *object*
-- **parser-error-stack-trace** *parser-error* => *stack-trace*
+- **parser-error-return-trace** *parser-error* => *return-trace*
 
-A *stack-trace* is a list of `(parser-name line column)`-structured objects that report where each element of the current parse stack was reading each item.
+A *return-trace* is a list of `(parser-name line column)`-structured objects detailing the state of the composite parser when it failed.
 
-For both the *parser-error* and *stack-trace*, lines start at `1` and columns start at `0`, and is initialized per **parse** call.
+For both the *parser-error* and *return-trace*, lines start at `1` and columns start at `0`, and is initialized per **parse** call.

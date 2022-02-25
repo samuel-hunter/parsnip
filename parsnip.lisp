@@ -68,6 +68,7 @@
   (column 0))
 
 (defun save (pstream)
+  "Return the position, line, and column of PSTREAM."
   (with-accessors ((stream pstream-stream)
                    (line pstream-line)
                    (column pstream-column)) pstream
@@ -76,6 +77,7 @@
           column)))
 
 (defun rewind (pstream snapshot)
+  "Set the (stream) position, line, and column of PSTREAM with the SNAPSHOT received from SAVE."
   (with-accessors ((stream pstream-stream)
                    (line pstream-line)
                    (column pstream-column)) pstream
@@ -86,6 +88,7 @@
   pstream)
 
 (defun advance-pstream (pstream c)
+  "Update the line and column of PSTREAM given the accepted char C and return PSTREAM."
   (with-accessors ((line pstream-line)
                    (column pstream-column)) pstream
     (if (char= c #\Newline)
@@ -103,6 +106,7 @@
   (advance-pstream pstream (read-char (pstream-stream pstream))))
 
 (defmacro let@ ((&rest bindings) &body body)
+  "Anaphoric self-callable LET."
   (let ((names (mapcar #'first bindings))
         (values (mapcar #'second bindings)))
     `(labels ((@ ,names ,@body))
@@ -126,6 +130,7 @@
              (ignore eok cok cfail))
     (funcall efail pstream expected trace)))
 
+(declaim (inline char-if))
 (defun char-if (predicate &optional message)
   "Return a parser that consumes a character that satisfies the given predicate."
   (check-type predicate function-designator)
@@ -141,15 +146,18 @@
       (if (and actual (funcall predicate actual))
           (funcall cok (consume pstream) actual)
           (funcall efail pstream message ())))))
+(declaim (notinline char-if))
 
 (defun char-of (char &optional message)
   "Return a parser that consumes the given character."
+  (declare (inline char-if))
   (check-type char character)
   (char-if (curry #'char= char)
            (or message (format nil "~S" char))))
 
 (defun char-in (charbag &optional message)
   "Return a parser that consumes a character that's only in the given charbag."
+  (declare (inline char-if))
   (check-type charbag sequence)
   (char-if (rcurry #'position charbag)
            (or message (format nil "One of ~S" charbag))))
@@ -423,10 +431,14 @@ If INITIAL-PARSER is supplied, the parser may succeed without calling FUNCTION b
 ;; front-facing for library consumers.
 
 (define-condition parser-error (stream-error)
-  ((line :initarg :line :reader parser-error-line :type integer)
-   (column :initarg :column :reader parser-error-column :type integer)
-   (expected :initarg :expected :reader parser-error-expected)
-   (return-trace :initarg :return-trace :reader parser-error-return-trace))
+  ((line :initarg :line :reader parser-error-line :type integer
+         :documentation "The (1-based) line number at which the parser failed")
+   (column :initarg :column :reader parser-error-column :type integer
+           :documentation "The (0-based) column number at which the parser failed")
+   (expected :initarg :expected :reader parser-error-expected
+             :documentation "An object describing what the parser expected to read")
+   (return-trace :initarg :return-trace :reader parser-error-return-trace
+                 :documentation "A list of (name line column) objects detailing the state of the parser when it failed"))
   (:report (lambda (condition stream)
              (with-accessors ((err-stream stream-error-stream)
                               (line parser-error-line)
