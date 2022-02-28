@@ -1,7 +1,7 @@
-;;; json.lisp - Parsnip example JSON decoder
-
-;;; Copyright 2021 Samuel Hunter <samuel (at) shunter (dot) xyz>
-;;; BSD-3-Clause
+;;; json.lisp - JSON decoder example
+;;;
+;;; Copyright (c) 2021 Samuel Hunter <samuel (at) shunter (dot) xyz>.
+;;; BSD 3-Clause License. See LICENSE for details.
 
 (defpackage #:xyz.shunter.parsnip.examples.json
   (:documentation "Parsnip example JSON decoder")

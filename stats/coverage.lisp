@@ -1,6 +1,11 @@
-;;; coverage.lisp - Generate coverage statistics
+;;; coverage.lisp - generate coverage statistics
+;;; Usage: sbcl --load coverage.lisp
+;;;
+;;; Copyright (c) 2021 Samuel Hunter <samuel (at) shunter (dot) xyz>.
+;;; BSD 3-Clause License. See LICENSE for details.
 
 (require :sb-cover)
+(require :asdf)
 
 (defpackage #:xyz.shunter.parsnip.coverage
   (:use #:cl)

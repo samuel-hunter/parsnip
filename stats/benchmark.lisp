@@ -1,8 +1,10 @@
-;;; benchmark.lisp - Benchmarking harness
+;;; benchmark.lisp - benchmarking parsnip vs. cl-json
+;;; Usage: sbcl --load benchmark.lisp
+;;;
+;;; Copyright (c) 2021 Samuel Hunter <samuel (at) shunter (dot) xyz>.
+;;; BSD 3-Clause License. See LICENSE for details.
 
-;;; Copyright 2021 Samuel Hunter <samuel (at) shunter (dot) xyz>
-;;; BSD-3-Clause
-
+(require :asdf)
 (require :alexandria)
 (require :cl-json)
 (require :parsnip/examples)

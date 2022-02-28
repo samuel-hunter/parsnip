@@ -1,7 +1,7 @@
-;;; test.lisp - Parsnip library test suite
-
+;;; test.lisp - test suite
+;;;
 ;;; Copyright 2021 Samuel Hunter <samuel (at) shunter (dot) xyz>
-;;; BSD-3-Clause
+;;; BSD 3-Clause License. See LICENSE for details.
 
 (defpackage #:xyz.shunter.parsnip.test
   (:use #:cl
@@ -10,7 +10,8 @@
         #:xyz.shunter.parsnip.examples.tiny-c)
   (:import-from #:alexandria
                 #:curry)
-  (:local-nicknames (#:t #:parachute)))
+  (:local-nicknames (#:t #:parachute))
+  (:documentation "Parser library test suite"))
 
 (in-package #:xyz.shunter.parsnip.test)
 

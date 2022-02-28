@@ -1,10 +1,11 @@
-;;; parsnip.asd - Parsnip library system definitions
-
+;;; parsnip.asd - system definitions
+;;;
 ;;; Copyright 2021 Samuel Hunter <samuel (at) shunter (dot) xyz>
-;;; BSD-3-Clause
+;;; BSD 3-Clause License. See LICENSE for details.
 
-(asdf:defsystem #:parsnip
-  :description "Parser combinator library"
+(defsystem #:parsnip
+  :description "Monadic parser combinator library"
+  :long-description "Parsnip defines a package that hosts a parser combinator collection targeting user-facing compilers, interpreters, or other character-reading decoders."
   :author "Samuel Hunter"
   :license  "BSD 3-Clause"
   :version "0.0.8"
@@ -16,9 +17,9 @@
 
   :depends-on (#:alexandria)
   :components ((:file "parsnip"))
-  :in-order-to ((asdf:test-op (asdf:test-op :parsnip/test))))
+  :in-order-to ((test-op (test-op :parsnip/test))))
 
-(asdf:defsystem #:parsnip/examples
+(defsystem #:parsnip/examples
   :description "Parsnip library examples"
   :author "Samuel Hunter"
   :license "BSD 3-Clause"
@@ -29,9 +30,9 @@
   :components ((:module :examples
                 :components ((:file "json")
                              (:file "tiny-c"))))
-  :in-order-to ((asdf:test-op (asdf:test-op :parsnip/test))))
+  :in-order-to ((test-op (test-op :parsnip/test))))
 
-(asdf:defsystem #:parsnip/test
+(defsystem #:parsnip/test
   :description "Parsnip library test suite"
   :author "Samuel Hunter"
   :license "BSD 3-Clause"
@@ -41,5 +42,5 @@
                #:parsnip/examples
                #:parachute)
   :components ((:file "test"))
-  :perform (asdf:test-op (op c)
+  :perform (test-op (op c)
              (uiop:symbol-call :parachute :test :xyz.shunter.parsnip.test)))

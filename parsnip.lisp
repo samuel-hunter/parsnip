@@ -1,10 +1,9 @@
-;;; parsnip.lisp - Parsnip library implementation
-
+;;; parsnip.lisp - source code
+;;;
 ;;; Copyright 2021 Samuel Hunter <samuel (at) shunter (dot) xyz>
-;;; BSD-3-Clause
+;;; BSD 3-Clause License. See LICENSE for details.
 
 (defpackage #:xyz.shunter.parsnip
-  (:documentation "Monadic parser combinator library")
   (:nicknames #:parsnip)
   (:use #:cl)
   (:import-from #:alexandria
@@ -50,9 +49,46 @@
 
            #:defparser
 
-           #:parse))
+           #:parse)
+  (:documentation "Monadic parser combinator library"))
 
 (in-package #:xyz.shunter.parsnip)
+
+;; Implementation Concepts: eok cok efail cfail continuations
+;;
+;; Parsnip parsers follow a design pattern from Haskell's parsec and accept
+;; four continuations along with the parser state:
+;;
+;; - "empty" OK (EOK)
+;; - "consumed" OK (COK)
+;; - "empty" Fail (EFAIL)
+;; - "consumed" Fail (CFAIL)
+;;
+;; As a parser is contructed, each continuation can be visualized as four
+;; separate tracks driving the parser where to go next. A parser calls one of
+;; the four continuations to continue parsing, which will either call the next
+;; parser, or call the function provided by PARSE, ending all parsing.
+;;
+;; In practice, EOK and COK continuations usually call the next parser laid out
+;; on the track, and the COK continuation replaces all EOK/EFAIL continuations
+;; with COK/CFAIL's, to indicate something was consumed by the parse stream.
+;; Most combinators inject continuations into EOK/COK. The HANDLE combinator
+;; injects a track into the EFAIL combinator to either recover or transform the
+;; given failure, and HANDLE-REWIND additionally handles CFAIL, rewinding the
+;; stack if that continuation is hit.
+;;
+;; In theory, a parser *could* return a value directly instead of calling a
+;; continuation, which would interrupt all tracks and become the return value
+;; of PARSE, but no Parsnip parsers do this in practice.
+
+
+;; The current implementation is closure-oriented, but I'm interested in
+;; reimplementing the library through CLOS objects. More specifically, classes
+;; would implement two GF's RUN-PARSER and FAST-RUN-PARSER, and combinator's
+;; constructors would be able to identify various special-case parsers and
+;; specialize by returning a completely different parser instead. Hopefully
+;; this would alleviate the FLATMAP . CHAR-IF hotspot I see when profiling the
+;; JSON decoder.
 
 
 
@@ -66,6 +102,8 @@
   (stream nil :read-only t)
   (line 1)
   (column 0))
+
+;; SAVE and REWIND are used by HANDLE-REWIND to recover from consumed failures.
 
 (defun save (pstream)
   "Return the position, line, and column of PSTREAM."
@@ -130,6 +168,10 @@
              (ignore eok cok cfail))
     (funcall efail pstream expected trace)))
 
+;; Wrapping an inline-declaim around CHAR-IF so that CHAR-OF and CHAR-IN can
+;; inline it in -- A good compiler should be able to inline (funcall (curry
+;; ...)).
+
 (declaim (inline char-if))
 (defun char-if (predicate &optional message)
   "Return a parser that consumes a character that satisfies the given predicate."
@@ -150,14 +192,14 @@
 
 (defun char-of (char &optional message)
   "Return a parser that consumes the given character."
-  (declare (inline char-if))
+  (declare (inline char-if curry))
   (check-type char character)
   (char-if (curry #'char= char)
            (or message (format nil "~S" char))))
 
 (defun char-in (charbag &optional message)
   "Return a parser that consumes a character that's only in the given charbag."
-  (declare (inline char-if))
+  (declare (inline char-if rcurry))
   (check-type charbag sequence)
   (char-if (rcurry #'position charbag)
            (or message (format nil "One of ~S" charbag))))
@@ -363,6 +405,8 @@ TRY! only works when the parser is given a seekable stream."
                                 value-parser))))
     (ok (list* first rest))))
 
+;; Perhaps a SEP* could parse like SEP, but with an optional ending separator?
+
 (defun reduce! (function parser &key initial-parser)
   "Return a parser that keeps running until failure, and reduces its results into one value.
 If INITIAL-PARSER is supplied, the parser may succeed without calling FUNCTION by returning INITIAL-PARSER's response."
@@ -392,7 +436,7 @@ If INITIAL-PARSER is supplied, the parser may succeed without calling FUNCTION b
                      (skip parser))
             (constantly (ok nil)))))
 
-;; Toplevel parsers
+;; Misc.
 
 (defun digit (&optional (radix 10))
   "Consume and return the number value of a digit."
@@ -406,8 +450,6 @@ If INITIAL-PARSER is supplied, the parser may succeed without calling FUNCTION b
   (reduce! (lambda (number d)
              (+ (* number radix) d))
            (digit radix)))
-
-;; Misc. helpers
 
 (defmacro defparser (name () &body (form))
   "Define a parser as a function. It can then be referenced as a function designator."
@@ -452,8 +494,7 @@ If INITIAL-PARSER is supplied, the parser may succeed without calling FUNCTION b
                        expected
                        err-stream))))
   (:documentation
-    "If a parser fails to read text, it signals a parser-error, containing a stream,
-its expected value, and a return trace of parsers."))
+    "If a parser fails, it signals a PARSER-ERROR, containing a stream, its expected value, and a return trace."))
 
 (defun signal-failure (pstream expected return-trace)
   "Signal an error depending on the given fail."

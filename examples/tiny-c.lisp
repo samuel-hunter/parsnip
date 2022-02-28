@@ -1,7 +1,7 @@
-;;; tiny-c.lisp - Parsnip example tiny C parser
-
-;;; Copyright 2022 Samuel Hunter <samuel (at) shunter (dot) xyz>
-;;; BSD-3-Clause
+;;; tiny-c.lisp - C subset parser example
+;;;
+;;; Copyright (c) 2022 Samuel Hunter <samuel (at) shunter (dot) xyz>.
+;;; BSD 3-Clause License. See LICENSE for details.
 
 (defpackage #:xyz.shunter.parsnip.examples.tiny-c
   (:documentation "Parsnip example tiny C parser")

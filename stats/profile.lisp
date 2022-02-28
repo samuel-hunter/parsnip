@@ -1,9 +1,11 @@
-;;; profile.lisp - Profiling harness
-
-;;; Copyright 2021 Samuel Hunter <samuel (at) shunter (dot) xyz>
-;;; BSD-3-Clause
+;;; profile.lisp - profiling harness
+;;; Usage: sbcl --load profile.lisp
+;;;
+;;; Copyright 2021 Samuel Hunter <samuel (at) shunter (dot) xyz>.
+;;; BSD 3-Clause License. See LICENSE for details.
 
 (require :sb-sprof)
+(require :asdf)
 (require :parsnip/examples)
 
 (defpackage #:xyz.shunter.parsnip.profile
