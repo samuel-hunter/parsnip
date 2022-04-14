@@ -5,11 +5,11 @@
 
 Monadic parser combinator library.
 
-Conventional parsers are modeled as a two-stage process: a scanner that takes characters and produce tokens, and a parser that takes tokens and produce syntax trees.
-Monadic parsers instead model parsers as smaller parsers that can compose together, much like the procedures of a conventional program.
+Conventional parsers are fundamentally modeled as a two-stage process: a scanner that takes character and return tokens, and a parser that takes tokens and return syntax trees.
+Monadic parsers can still be modeled like this, however they are founded on primitive parsers that can compose together, like greater functions using smaller functions to compose a program.
 
-Other parser combinator libraries I've found for Common Lisp are either too macro-heavy for me, or warn that they are not production-ready.
-I don't trust third-party libraries that don't trust themselves, and so I've made my own, going for a simple interface targeted for public consumption.
+Other parser combinator libraries I've found for Common Lisp are either unnecessarily macro-heavy, or warn that they are not production-ready.
+I wanted to use a library that's confident enough to be depended by others, and so I've made my own, going for a well-documented interfaced targeted for public consumption.
 
 Parsnip targets user-facing compilers, interpreters, or other readers of character-based languages, where programs would like to recover from or give insight about parser errors.
 Parsnip does **not** target performance-intensive or byte-based decoders, such as those used in network stacks, or JSON/XML decoders for request data for high-performance web applications.
@@ -119,7 +119,7 @@ However, you may have certain requirements for your own project which would hold
   Something similar to the example json decoder can be reasonably written within an afternoon.
   During anothe one of my projects, I was able to write a parser that describes notes, durations, note dots, pitches, beams, chords, and measure bars, within a similar amount of time.
   I've designed the API to match CL's standard library as closely as possible to make it as learnable as possible.
-- Maturity.
+- Maturity?
   The best solution for this that I can think of is `Time * Exposure`.
   I also appreciate multiple eyes looking at this project.
   Any comments, questions, and suggestions are well appreciated :)
@@ -129,7 +129,7 @@ However, you may have certain requirements for your own project which would hold
 When the library reaches 1.0, I need to consider what parts of the library to solidify.
 I recognize these as breaking changes:
 
-- Removing functions or macros
+- Removing functions or macros.
 - Removing parameters from a function or macro.
 - Changing a function to a macro, or vice-versa.
 - Changing the specified behavior of a pre-existing function or macro, given the same parameters.
@@ -137,10 +137,9 @@ I recognize these as breaking changes:
 
 I recognize these as non-breaking changes:
 
-- Extending functions or macros with on-required parameters.
-  The default behavior should still match
-- Adding new external functions, macros, or other symbols to the package.
-- Changing the behavior of pre-existing function or macro, if the original behavior was a bug.
+- Extending functions or macros with optional parameters.
+- Externing new symbols from the package.
+- Changing the behavior of a pre-existing function or macro, if the original behavior was a bug.
 - Adding new dependencies to the system (though I hardly foresee this happening).
 
 ## Examples
