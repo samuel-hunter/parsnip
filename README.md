@@ -1,5 +1,6 @@
 # Parsnip
 [![builds.sr.ht status](https://builds.sr.ht/~shunter/parsnip/commits/test.yml.svg)](https://builds.sr.ht/~shunter/parsnip/commits/test.yml)
+[![Quicklisp status](https://quickdocs.org/badge/parsnip.svg)](https://quickdocs.org/parsnip)
 
 ![The library brand image: a crudely drawn parsnip surrounded by parentheses](./brand.png)
 
